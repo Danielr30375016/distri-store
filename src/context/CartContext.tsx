@@ -1,77 +1,72 @@
 'use client'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-
-export interface CartItem {
+// 1. Definimos la estructura de un producto en el carrito
+interface CartItem {
   id: number
   name: string
   price: number
+  image?: string
   quantity: number
-  image?: string // Clave para que funcione en la UI del carrito
 }
 
+// 2. Definimos qué funciones y datos ofrece el carrito (Aquí estaba tu error de TS)
 interface CartContextType {
   items: CartItem[]
-  addItem: (item: Omit<CartItem, 'quantity'>) => void
-  removeItem: (id: number) => void
-  updateQuantity: (id: number, delta: number) => void
+  addToCart: (product: any) => void
+  removeFromCart: (id: number) => void
   clearCart: () => void
-  total: number
+  totalItems: number
 }
 
-const CartContext = createContext<CartContextType | null>(null)
+const CartContext = createContext<CartContextType | undefined>(undefined)
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>([])
 
-  // Cargar del localStorage al iniciar
+  // Cargar carrito desde localStorage al iniciar
   useEffect(() => {
-    const saved = localStorage.getItem('distri-cart')
-    if (saved) setItems(JSON.parse(saved))
+    const savedCart = localStorage.getItem('distri-cart')
+    if (savedCart) setItems(JSON.parse(savedCart))
   }, [])
 
-  // Guardar en localStorage cuando cambien los items
+  // Guardar en localStorage cada vez que cambie
   useEffect(() => {
     localStorage.setItem('distri-cart', JSON.stringify(items))
   }, [items])
 
-  const addItem = (item: Omit<CartItem, 'quantity'>) => {
+  const addToCart = (product: any) => {
     setItems(prev => {
-      const existing = prev.find(p => p.id === item.id)
-      if (existing) {
-        return prev.map(p => p.id === item.id ? { ...p, quantity: p.quantity + 1 } : p)
+      const exists = prev.find(item => item.id === product.id)
+      if (exists) {
+        return prev.map(item => 
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        )
       }
-      return [...prev, { ...item, quantity: 1 }]
+      return [...prev, { ...product, quantity: 1 }]
     })
   }
 
-  const updateQuantity = (id: number, delta: number) => {
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(1, item.quantity + delta)
-        return { ...item, quantity: newQty }
-      }
-      return item
-    }))
-  }
-
-  const removeItem = (id: number) => {
-    setItems(prev => prev.filter(p => p.id !== id))
+  const removeFromCart = (id: number) => {
+    setItems(prev => prev.filter(item => item.id !== id))
   }
 
   const clearCart = () => setItems([])
 
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0)
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, total }}>
+    <CartContext.Provider value={{ items, addToCart, removeFromCart, clearCart, totalItems }}>
       {children}
     </CartContext.Provider>
   )
 }
 
+// Hook personalizado para usar el carrito
 export const useCart = () => {
-  const ctx = useContext(CartContext)
-  if (!ctx) throw new Error('useCart debe estar dentro de CartProvider')
-  return ctx
+  const context = useContext(CartContext)
+  if (!context) {
+    throw new Error('useCart debe estar dentro de CartProvider') // Este es el error que veías antes
+  }
+  return context
 }
