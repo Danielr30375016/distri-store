@@ -40,6 +40,7 @@ export default function ProductDetailPage() {
             src={product.image || 'https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=600'} 
             alt={product.name}
             fill
+            unoptimized
             className="object-contain p-8 group-hover:scale-110 transition-transform duration-500"
           />
         </div>

@@ -15,6 +15,7 @@ export default async function Home() {
           src="https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?q=80&w=1200" 
           alt="Banner Promocional" 
           fill 
+          unoptimized
           className="object-cover group-hover:scale-105 transition-transform duration-700"
           priority
         />

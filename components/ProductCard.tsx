@@ -23,6 +23,7 @@ export default function ProductCard({ id, name, price, image }: ProductProps) {
             src={image ?? "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=500"}
             alt={name}
             fill
+            unoptimized
             className="object-contain p-6 group-hover:scale-110 transition-transform duration-500"
           />
         </Link>
