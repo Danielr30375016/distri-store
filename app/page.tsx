@@ -1,11 +1,10 @@
-import { Product } from '../lib/data'
+import { getProducts } from '../lib/data'
 import ProductCard from '../components/ProductCard'
 import Image from 'next/image'
 import Link from 'next/link'
 
 export default async function Home() {
-  const res = await fetch('/api/products', { cache: 'no-store' })
-  const products: Product[] = await res.json()
+  const products = await getProducts()
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col gap-12">
