@@ -1,9 +1,12 @@
-import { PRODUCTOS } from '../lib/data'
+import { Product } from '../lib/data'
 import ProductCard from '../components/ProductCard'
 import Image from 'next/image'
 import Link from 'next/link'
 
-export default function Home() {
+export default async function Home() {
+  const res = await fetch('/api/products', { cache: 'no-store' })
+  const products: Product[] = await res.json()
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col gap-12">
       
@@ -70,17 +73,18 @@ export default function Home() {
           {[
             { name: 'Eléctricas', icon: '⚡', color: 'hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]' },
             { name: 'Manuales', icon: '🔧', color: 'hover:shadow-[0_0_20px_rgba(249,115,22,0.2)]' },
-            { name: 'Medición', icon: '📏', color: 'hover:shadow-[0_0_20px_rgba(34,197,94,0.2)]' },
+            { name: 'Almacenamiento', icon: '📦', color: 'hover:shadow-[0_0_20px_rgba(34,197,94,0.2)]' },
             { name: 'Seguridad', icon: '🦺', color: 'hover:shadow-[0_0_20px_rgba(234,179,8,0.2)]' },
-            { name: 'Herrajes', icon: '🔩', color: 'hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]' },
+            { name: 'Medición', icon: '📏', color: 'hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]' },
           ].map((cat) => (
-            <div 
-              key={cat.name}
-              className={`bg-neutral-900 border border-neutral-800 p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-orange-500 transition-all cursor-pointer hover:-translate-y-1 group ${cat.color}`}
-            >
-              <span className="text-4xl group-hover:rotate-12 transition-transform">{cat.icon}</span>
-              <span className="font-bold text-sm text-neutral-200">{cat.name}</span>
-            </div>
+            <Link key={cat.name} href={`/productos?categoria=${encodeURIComponent(cat.name)}`}>
+              <div 
+                className={`bg-neutral-900 border border-neutral-800 p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-orange-500 transition-all cursor-pointer hover:-translate-y-1 group ${cat.color}`}
+              >
+                <span className="text-4xl group-hover:rotate-12 transition-transform">{cat.icon}</span>
+                <span className="font-bold text-sm text-neutral-200">{cat.name}</span>
+              </div>
+            </Link>
           ))}
         </div>
       </section>
@@ -91,12 +95,13 @@ export default function Home() {
           PRODUCTOS <span className="text-orange-500 uppercase">Destacados</span>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-          {PRODUCTOS.map(p => (
+          {products.map(p => (
             <ProductCard 
               key={p.id} 
               id={p.id} 
               name={p.name} 
               price={p.price} 
+              image={p.image}
             />
           ))}
         </div>

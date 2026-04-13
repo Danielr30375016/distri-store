@@ -1,22 +1,34 @@
 'use client'
-import { useState } from 'react'
-import { PRODUCTOS } from '../../lib/data'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Product } from '../../lib/data'
 import ProductCard from '../../components/ProductCard'
 
-export default function CatalogPage() {
+function Catalog({ products }: { products: Product[] }) {
   const [search, setSearch] = useState('')
   const [maxPrice, setMaxPrice] = useState(2000000)
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const searchParams = useSearchParams()
 
-  // Filtros combinados: Búsqueda por nombre y Rango de precio
-  const filteredProducts = PRODUCTOS.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) && p.price <= maxPrice
+  useEffect(() => {
+    const categoria = searchParams.get('categoria')
+    if (categoria) {
+      setSelectedCategory(categoria)
+    }
+  }, [searchParams])
+
+  // Filtros combinados: Búsqueda por nombre, Rango de precio y Categoría
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(search.toLowerCase()) && 
+    p.price <= maxPrice &&
+    (selectedCategory === '' || p.category === selectedCategory)
   )
 
   const categorias = [
     { n: 'Eléctricas', i: 'https://images.unsplash.com/photo-1504148455328-497c596d229c?w=200' },
     { n: 'Manuales', i: 'https://images.unsplash.com/photo-1586864387917-f539b1684bb0?w=200' },
-    { n: 'Seguridad', i: 'https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=200' },
-    { n: 'Medición', i: 'https://images.unsplash.com/photo-1504148455328-497c596d229c?w=200' }
+    { n: 'Almacenamiento', i: 'https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=200' },
+    { n: 'Seguridad', i: 'https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=200' }
   ]
 
   return (
@@ -24,7 +36,13 @@ export default function CatalogPage() {
       {/* 1. GRILLA DE CATEGORÍAS (Estilo Rhino) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
         {categorias.map(cat => (
-          <div key={cat.n} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col items-center hover:border-orange-500 transition-all cursor-pointer group">
+          <div 
+            key={cat.n} 
+            onClick={() => setSelectedCategory(selectedCategory === cat.n ? '' : cat.n)}
+            className={`bg-neutral-900 border rounded-2xl p-4 flex flex-col items-center hover:border-orange-500 transition-all cursor-pointer group ${
+              selectedCategory === cat.n ? 'border-orange-500 bg-orange-500/10' : 'border-neutral-800'
+            }`}
+          >
             <div className="w-full h-32 relative mb-4 overflow-hidden rounded-xl bg-neutral-800">
                <img src={cat.i} alt={cat.n} className="object-cover w-full h-full group-hover:scale-110 transition-transform opacity-70 group-hover:opacity-100" />
             </div>
@@ -85,4 +103,18 @@ export default function CatalogPage() {
       </div>
     </div>
   )
+}
+
+export default function CatalogPage() {
+  return (
+    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-12 text-center">Cargando catálogo...</div>}>
+      <CatalogWrapper />
+    </Suspense>
+  )
+}
+
+async function CatalogWrapper() {
+  const res = await fetch('/api/products', { cache: 'no-store' })
+  const products: Product[] = await res.json()
+  return <Catalog products={products} />
 }
