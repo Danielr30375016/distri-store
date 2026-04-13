@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#1f1f1f"/>
+  <rect x="80" y="80" width="640" height="440" rx="36" fill="#2b2b2b" stroke="#3f3f3f"/>
+  <path d="M270 230C270 196.863 296.863 170 330 170H500C533.137 170 560 196.863 560 230V280C560 313.137 533.137 340 500 340H450V410C450 437.614 427.614 460 400 460H390C362.386 460 340 437.614 340 410V340H330C296.863 340 270 313.137 270 280V230Z" fill="#f97316"/>
+  <rect x="520" y="215" width="80" height="80" rx="16" fill="#d4d4d4"/>
+  <circle cx="430" cy="255" r="28" fill="#171717"/>
+  <text x="400" y="500" fill="#fafafa" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" text-anchor="middle">Taladro Inalambrico</text>
+</svg>

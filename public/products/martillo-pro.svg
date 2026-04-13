@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#1f1f1f"/>
+  <rect x="80" y="80" width="640" height="440" rx="36" fill="#2b2b2b" stroke="#3f3f3f"/>
+  <rect x="300" y="160" width="70" height="220" rx="20" transform="rotate(-35 300 160)" fill="#f97316"/>
+  <rect x="340" y="120" width="180" height="70" rx="18" transform="rotate(-35 340 120)" fill="#d4d4d4"/>
+  <text x="400" y="500" fill="#fafafa" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" text-anchor="middle">Martillo Pro</text>
+</svg>
