@@ -13,13 +13,13 @@ function createPrismaClient() {
     throw new Error('DATABASE_URL no esta definida')
   }
 
-  const pool = new Pool({ connectionString })
+  const pool = new Pool({
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+  })
   const adapter = new PrismaPg(pool)
 
-  return new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === 'development' ? ['query'] : undefined,
-  })
+  return new PrismaClient({ adapter })
 }
 
 const prisma = globalForPrisma.prisma ?? createPrismaClient()

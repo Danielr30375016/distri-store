@@ -53,3 +53,20 @@ export async function getProductById(id: number): Promise<Product | null> {
     return mockProducts.find(p => p.id === id) || null
   }
 }
+
+export async function createProduct(data: Omit<Product, 'id'>): Promise<Product> {
+  try {
+    return await prisma.product.create({ data })
+  } catch (err) {
+    console.error('[createProduct] Error:', err)
+    throw err
+  }
+}
+
+export async function updateProduct(id: number, data: Partial<Omit<Product, 'id'>>): Promise<Product> {
+  return prisma.product.update({ where: { id }, data })
+}
+
+export async function deleteProduct(id: number): Promise<void> {
+  await prisma.product.delete({ where: { id } })
+}
