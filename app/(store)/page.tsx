@@ -1,5 +1,5 @@
-import { getProducts } from '../lib/data'
-import ProductCard from '../components/ProductCard'
+import { getProducts } from '@/lib/data'
+import ProductCard from '@/components/ProductCard'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -36,40 +36,40 @@ export default async function Home() {
       {/* 2. BOTONES DE ACCESO RÁPIDO (Personalidad DistriStore) */}
       <div className="flex flex-wrap gap-4 justify-center">
         {['🔥 Lo más vendido', '🏷️ Ofertas del mes', '🆕 Recién llegados', '💎 Premium'].map((label) => (
-          <button key={label} className="bg-neutral-900 border border-neutral-800 hover:border-orange-500 text-white px-6 py-2 rounded-full text-sm font-bold transition-all hover:bg-neutral-800">
+          <button key={label} className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 hover:border-orange-500 text-gray-700 dark:text-white px-6 py-2 rounded-full text-sm font-bold transition-all hover:bg-orange-50 dark:hover:bg-neutral-800 shadow-sm dark:shadow-none">
             {label}
           </button>
         ))}
       </div>
 
       {/* 3. SECCIÓN DE CONFIANZA (Iconos de Beneficios) */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           { icon: '🏦', title: 'Transferencia', desc: 'Desde tu Banco' },
           { icon: '🛡️', title: 'Compra Segura', desc: 'Protección Total' },
           { icon: '📦', title: 'Gran Catálogo', desc: 'Miles de Productos' },
           { icon: '💬', title: 'Asesoría', desc: 'Expertos en Línea' },
         ].map((item) => (
-          <div key={item.title} className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl flex flex-col items-center text-center hover:border-orange-500/40 transition-all group">
-            <span className="text-4xl mb-3 group-hover:scale-110 transition-transform">{item.icon}</span>
-            <h3 className="font-bold text-neutral-100 mb-1 leading-none">{item.title}</h3>
-            <p className="text-xs text-neutral-500">{item.desc}</p>
+          <div key={item.title} className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 p-4 md:p-6 rounded-2xl flex flex-col items-center text-center hover:border-orange-500/40 transition-all group shadow-sm dark:shadow-none">
+            <span className="text-3xl md:text-4xl mb-3 group-hover:scale-110 transition-transform">{item.icon}</span>
+            <h3 className="font-bold text-gray-900 dark:text-neutral-100 mb-1 leading-none text-sm md:text-base">{item.title}</h3>
+            <p className="text-xs text-gray-400 dark:text-neutral-500">{item.desc}</p>
           </div>
         ))}
       </section>
 
       {/* 4. CATEGORÍAS CON EFECTO NEÓN */}
       <section>
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-white tracking-tight border-l-4 border-orange-500 pl-4">
+        <div className="flex items-center justify-between mb-6 md:mb-8">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight border-l-4 border-orange-500 pl-4">
             Explorar <span className="text-orange-500 uppercase">Categorías</span>
           </h2>
-          <Link href="/productos" className="text-sm text-neutral-500 hover:text-orange-500 transition font-bold uppercase tracking-widest">
+          <Link href="/productos" className="text-sm text-gray-400 dark:text-neutral-500 hover:text-orange-500 transition font-bold uppercase tracking-widest">
             Ver Todo →
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
           {[
             { name: 'Eléctricas', icon: '⚡', color: 'hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]' },
             { name: 'Manuales', icon: '🔧', color: 'hover:shadow-[0_0_20px_rgba(249,115,22,0.2)]' },
@@ -78,11 +78,11 @@ export default async function Home() {
             { name: 'Medición', icon: '📏', color: 'hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]' },
           ].map((cat) => (
             <Link key={cat.name} href={`/productos?categoria=${encodeURIComponent(cat.name)}`}>
-              <div 
-                className={`bg-neutral-900 border border-neutral-800 p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-orange-500 transition-all cursor-pointer hover:-translate-y-1 group ${cat.color}`}
+              <div
+                className={`bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 p-4 md:p-6 rounded-3xl flex flex-col items-center justify-center gap-2 md:gap-3 hover:border-orange-500 transition-all cursor-pointer hover:-translate-y-1 group shadow-sm dark:shadow-none ${cat.color}`}
               >
-                <span className="text-4xl group-hover:rotate-12 transition-transform">{cat.icon}</span>
-                <span className="font-bold text-sm text-neutral-200">{cat.name}</span>
+                <span className="text-2xl md:text-4xl group-hover:rotate-12 transition-transform">{cat.icon}</span>
+                <span className="font-bold text-xs text-gray-700 dark:text-neutral-200 text-center leading-tight">{cat.name}</span>
               </div>
             </Link>
           ))}
@@ -91,7 +91,7 @@ export default async function Home() {
 
       {/* 5. LISTADO DE PRODUCTOS DESTACADOS */}
       <section className="mt-4">
-        <h2 className="text-3xl font-black text-white mb-8 border-l-4 border-orange-500 pl-4 tracking-tight">
+        <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-6 md:mb-8 border-l-4 border-orange-500 pl-4 tracking-tight">
           PRODUCTOS <span className="text-orange-500 uppercase">Destacados</span>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
@@ -102,6 +102,8 @@ export default async function Home() {
               name={p.name} 
               price={p.price} 
               image={p.image}
+              discount={p.discount}
+              stock={p.stock}
             />
           ))}
         </div>

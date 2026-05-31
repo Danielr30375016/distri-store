@@ -1,8 +1,7 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import { CartProvider } from '../src/context/CartContext'
-import Navbar from '../components/Navbar'
-import WhatsAppButton from '../components/WhatsAppButton'
+import { ThemeProvider } from '../src/context/ThemeContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -17,28 +16,20 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es">
-      <body className={`${inter.className} bg-black text-white min-h-screen`}>
-        <CartProvider>
-          {/* El Navbar ahora es el protagonista en la parte superior */}
-          <header className="w-full z-50 sticky top-0 shadow-2xl">
-            <Navbar />
-          </header>
-
-          <main className="min-h-[80vh]">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('ds-theme');if(t==='light'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body suppressHydrationWarning className={`${inter.className} bg-orange-50 dark:bg-black text-gray-900 dark:text-white min-h-screen transition-colors duration-300`}>
+        <ThemeProvider>
+          <CartProvider>
             {children}
-          </main>
-
-          <WhatsAppButton />
-          
-          <footer className="bg-neutral-900 border-t border-neutral-800 py-12 mt-20">
-            <div className="max-w-7xl mx-auto px-4 text-center">
-              <p className="text-neutral-500 text-sm font-bold tracking-widest">
-                &copy; {new Date().getFullYear()} DISTRI-STORE. CALIDAD PROFESIONAL.
-              </p>
-            </div>
-          </footer>
-        </CartProvider>
+          </CartProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

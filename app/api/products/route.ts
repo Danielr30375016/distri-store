@@ -17,11 +17,19 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, price, image, desc, category } = body
+    const { name, price, image, desc, category, discount, stock } = body
     if (!name || price == null || !desc || !category) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
-    const product = await createProduct({ name, price: Number(price), image: image || null, desc, category })
+    const product = await createProduct({
+      name,
+      price: Number(price),
+      image: image || null,
+      desc,
+      category,
+      discount: Number(discount ?? 0),
+      stock: stock !== false,
+    })
     return NextResponse.json(product, { status: 201 })
   } catch (err) {
     console.error('Error al crear producto:', err)

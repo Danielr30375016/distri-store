@@ -28,13 +28,15 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, price, image, desc, category } = body
+    const { name, price, image, desc, category, discount, stock } = body
     const product = await updateProduct(Number(id), {
       ...(name && { name }),
       ...(price != null && { price: Number(price) }),
       ...(desc && { desc }),
       ...(category && { category }),
       image: image ?? null,
+      discount: discount != null ? Number(discount) : 0,
+      stock: stock !== false,
     })
     return NextResponse.json(product)
   } catch {

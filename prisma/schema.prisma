@@ -17,4 +17,6 @@ model Product {
   image    String?
   desc     String
   category String
+  discount Int     @default(0)
+  stock    Boolean @default(true)
 }

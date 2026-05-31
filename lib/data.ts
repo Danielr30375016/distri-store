@@ -7,6 +7,8 @@ export interface Product {
   image: string | null
   desc: string
   category: string
+  discount: number
+  stock: boolean
 }
 
 const mockProducts: Product[] = [
@@ -16,7 +18,9 @@ const mockProducts: Product[] = [
     price: 15000,
     image: "/products/martillo-pro.svg",
     desc: "Martillo de acero forjado con mango ergonómico.",
-    category: "Manuales"
+    category: "Manuales",
+    discount: 0,
+    stock: true,
   },
   {
     id: 2,
@@ -24,7 +28,9 @@ const mockProducts: Product[] = [
     price: 120000,
     image: "/products/taladro-inalambrico.svg",
     desc: "Taladro de 18V con dos baterías incluidas.",
-    category: "Eléctricas"
+    category: "Eléctricas",
+    discount: 10,
+    stock: true,
   },
   {
     id: 3,
@@ -32,7 +38,9 @@ const mockProducts: Product[] = [
     price: 45000,
     image: "/products/caja-de-herramientas.svg",
     desc: "Caja de plástico reforzado con compartimentos.",
-    category: "Almacenamiento"
+    category: "Almacenamiento",
+    discount: 0,
+    stock: false,
   },
 ]
 

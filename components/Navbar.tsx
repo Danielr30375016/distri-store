@@ -1,47 +1,40 @@
 'use client'
 import Link from 'next/link'
 import { useCart } from '../src/context/CartContext'
-import { useState } from 'react'
+import { useTheme } from '../src/context/ThemeContext'
 
 export default function Navbar() {
   const { totalItems } = useCart()
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      window.location.href = `/productos?q=${encodeURIComponent(searchQuery)}`
-    }
-  }
+  const { theme, toggleTheme } = useTheme()
 
   return (
-    <nav className="bg-neutral-950/80 backdrop-blur-md border-b border-neutral-800 py-4 px-6 shadow-xl">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-        
+    <nav className="bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md border-b border-gray-200 dark:border-neutral-800 py-3 px-4 shadow-sm dark:shadow-xl transition-colors duration-300">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+
         {/* LOGO */}
-        <Link href="/" className="text-2xl font-black text-white tracking-tighter flex items-center gap-1 group">
+        <Link href="/" className="text-xl font-black text-gray-900 dark:text-white tracking-tighter flex items-center gap-1 group shrink-0">
           DISTRI<span className="text-orange-500 group-hover:rotate-12 transition-transform">STORE</span>
         </Link>
 
-        {/* BUSCADOR (Inspirado en Rhino) */}
-        <form onSubmit={handleSearch} className="w-full md:w-1/2 relative">
-          <input 
-            type="text" 
-            placeholder="Busca herramientas, marcas y más..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-neutral-900 border border-neutral-800 rounded-full px-6 py-2 text-sm text-white focus:outline-none focus:border-orange-500 transition-all"
-          />
-          <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-orange-500">
-            🔍
-          </button>
-        </form>
-
-        {/* BOTONES */}
-        <div className="flex items-center gap-6">
-          <Link href="/productos" className="text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-orange-500 transition">
+        {/* LINKS + ICONOS */}
+        <div className="flex items-center gap-4 shrink-0">
+          <Link
+            href="/productos"
+            className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-neutral-400 hover:text-orange-500 dark:hover:text-orange-500 transition"
+          >
             Catálogo
           </Link>
+
+          {/* TOGGLE TEMA */}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 border border-gray-200 dark:border-neutral-700 transition-all text-base"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+
+          {/* CARRITO */}
           <Link href="/carrito" className="relative group">
             <span className="text-2xl group-hover:scale-110 transition-transform block">🛒</span>
             {totalItems > 0 && (
@@ -51,6 +44,7 @@ export default function Navbar() {
             )}
           </Link>
         </div>
+
       </div>
     </nav>
   )
