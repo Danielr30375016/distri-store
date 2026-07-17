@@ -1,5 +1,6 @@
 'use client'
 import { useCart } from '@/src/context/CartContext'
+import { site } from '@/lib/site'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -10,8 +11,8 @@ export default function CartPage() {
 
   // FUNCIÓN PARA ENVIAR EL PEDIDO A WHATSAPP
   const handleCheckout = () => {
-    const telefono = "573000000000" // 👈 REEMPLAZA CON TU NÚMERO (incluye código de país)
-    
+    const telefono = site.phoneWhatsapp
+
     // Formateamos la lista de productos para el mensaje
     const listaProductos = items.map(item => 
       `- ${item.name} (x${item.quantity}): $${(item.price * item.quantity).toLocaleString('es-CO')}`

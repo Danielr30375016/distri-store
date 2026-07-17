@@ -96,12 +96,12 @@ export default async function Home() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
           {products.map(p => (
-            <ProductCard 
-              key={p.id} 
-              id={p.id} 
-              name={p.name} 
-              price={p.price} 
-              image={p.image}
+            <ProductCard
+              key={p.id}
+              id={p.id}
+              name={p.name}
+              price={p.price}
+              images={p.images}
               discount={p.discount}
               stock={p.stock}
             />

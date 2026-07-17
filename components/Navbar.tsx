@@ -24,6 +24,12 @@ export default function Navbar() {
           >
             Catálogo
           </Link>
+          <Link
+            href="/marcas"
+            className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-neutral-400 hover:text-orange-500 dark:hover:text-orange-500 transition"
+          >
+            Marcas
+          </Link>
 
           {/* TOGGLE TEMA */}
           <button

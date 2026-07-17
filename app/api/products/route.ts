@@ -17,16 +17,22 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, price, image, desc, category, discount, stock } = body
+    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock } = body
     if (!name || price == null || !desc || !category) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
+    const cleanImages = Array.isArray(images)
+      ? images.filter((i: unknown): i is string => typeof i === 'string' && i.trim() !== '').slice(0, 6)
+      : []
     const product = await createProduct({
       name,
       price: Number(price),
-      image: image || null,
+      images: cleanImages,
       desc,
       category,
+      subcategory: subcategory?.trim() || null,
+      reference: reference?.trim() || null,
+      brand: brand?.trim() || null,
       discount: Number(discount ?? 0),
       stock: stock !== false,
     })

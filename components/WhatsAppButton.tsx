@@ -1,7 +1,8 @@
 'use client'
+import { site } from '@/lib/site'
 
 export default function WhatsAppButton() {
-  const phoneNumber = "573001234567"; // Tu número
+  const phoneNumber = site.phoneWhatsapp;
   const defaultMessage = encodeURIComponent("¡Hola DistriStore! Tengo una duda sobre un producto.");
 
   return (

@@ -28,13 +28,20 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, price, image, desc, category, discount, stock } = body
+    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock } = body
     const product = await updateProduct(Number(id), {
       ...(name && { name }),
       ...(price != null && { price: Number(price) }),
       ...(desc && { desc }),
       ...(category && { category }),
-      image: image ?? null,
+      ...(subcategory !== undefined && { subcategory: subcategory?.trim() || null }),
+      ...(reference !== undefined && { reference: reference?.trim() || null }),
+      ...(brand !== undefined && { brand: brand?.trim() || null }),
+      ...(Array.isArray(images) && {
+        images: images
+          .filter((i: unknown): i is string => typeof i === 'string' && i.trim() !== '')
+          .slice(0, 6),
+      }),
       discount: discount != null ? Number(discount) : 0,
       stock: stock !== false,
     })

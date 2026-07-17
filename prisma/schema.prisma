@@ -11,12 +11,35 @@ datasource db {
 }
 
 model Product {
-  id       Int     @id @default(autoincrement())
-  name     String
-  price    Int
-  image    String?
-  desc     String
-  category String
-  discount Int     @default(0)
-  stock    Boolean @default(true)
+  id          Int      @id @default(autoincrement())
+  name        String
+  price       Int
+  images      String[] @default([])
+  desc        String
+  category    String
+  subcategory String?
+  reference   String?
+  brand       String?
+  discount    Int      @default(0)
+  stock       Boolean  @default(true)
+}
+
+model Brand {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+}
+
+model Category {
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  subcategories Subcategory[]
+}
+
+model Subcategory {
+  id         Int      @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, name])
 }

@@ -12,7 +12,7 @@ async function main() {
         id: 1,
         name: "Martillo Pro",
         price: 15000,
-        image: "/products/martillo-pro.svg",
+        images: ["/products/martillo-pro.svg"],
         desc: "Martillo de acero forjado con mango ergonómico.",
         category: "Manuales"
       },
@@ -20,7 +20,7 @@ async function main() {
         id: 2,
         name: "Taladro Inalámbrico",
         price: 120000,
-        image: "/products/taladro-inalambrico.svg",
+        images: ["/products/taladro-inalambrico.svg"],
         desc: "Taladro de 18V con dos baterías incluidas.",
         category: "Eléctricas"
       },
@@ -28,7 +28,7 @@ async function main() {
         id: 3,
         name: "Caja de Herramientas",
         price: 45000,
-        image: "/products/caja-de-herramientas.svg",
+        images: ["/products/caja-de-herramientas.svg"],
         desc: "Caja de plástico reforzado con compartimentos.",
         category: "Almacenamiento"
       },

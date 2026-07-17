@@ -7,15 +7,16 @@ interface ProductProps {
   id: number
   name: string
   price: number
-  image: string | null
+  images?: string[]
   discount?: number
   stock?: boolean
 }
 
-export default function ProductCard({ id, name, price, image, discount = 0, stock = true }: ProductProps) {
+export default function ProductCard({ id, name, price, images = [], discount = 0, stock = true }: ProductProps) {
   const { addToCart } = useCart()
   const hasDiscount = discount > 0
   const finalPrice = hasDiscount ? Math.round(price * (1 - discount / 100)) : price
+  const cover = images[0] ?? null
 
   return (
     <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col group hover:border-orange-500/50 transition-all duration-300 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none">
@@ -34,7 +35,7 @@ export default function ProductCard({ id, name, price, image, discount = 0, stoc
         )}
         <Link href={`/productos/${id}`}>
           <Image
-            src={image ?? "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=500"}
+            src={cover ?? "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?w=500"}
             alt={name}
             fill
             unoptimized
@@ -68,7 +69,7 @@ export default function ProductCard({ id, name, price, image, discount = 0, stoc
 
         {/* BOTÓN DE ACCIÓN */}
         <button
-          onClick={() => stock && addToCart({ id, name, price: finalPrice, image: image ?? undefined })}
+          onClick={() => stock && addToCart({ id, name, price: finalPrice, image: cover ?? undefined })}
           disabled={!stock}
           className={`mt-auto w-full font-black py-3 rounded-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 uppercase text-xs ${
             stock

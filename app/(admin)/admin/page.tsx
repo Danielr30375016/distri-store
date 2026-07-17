@@ -7,14 +7,47 @@ interface Product {
   id: number
   name: string
   price: number
-  image: string | null
+  images: string[]
   desc: string
   category: string
+  subcategory: string | null
+  reference: string | null
+  brand: string | null
   discount: number
   stock: boolean
 }
 
-const emptyForm = { name: '', price: '', image: '', desc: '', category: '', discount: '0', stock: true }
+interface Subcategory {
+  id: number
+  name: string
+  categoryId: number
+}
+
+interface Category {
+  id: number
+  name: string
+  subcategories: Subcategory[]
+}
+
+interface Brand {
+  id: number
+  name: string
+}
+
+const emptyForm = {
+  name: '',
+  price: '',
+  images: [] as string[],
+  desc: '',
+  category: '',
+  subcategory: '',
+  reference: '',
+  brand: '',
+  discount: '0',
+  stock: true,
+}
+
+const MAX_IMAGES = 6
 
 const NAME_MAX = 80
 const DESC_MAX = 600
@@ -45,9 +78,22 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Product | null>(null)
   const [error, setError] = useState('')
-  const [categories, setCategories] = useState<string[]>([])
-  const [newCategory, setNewCategory] = useState('')
-  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
+
+  // Manejo de imágenes (hasta 6, por URL o subida desde la PC)
+  const [imgUrl, setImgUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [imgError, setImgError] = useState('')
+
+  // Modal de gestión de catálogo (marcas / categorías / subcategorías)
+  const [showCatalog, setShowCatalog] = useState(false)
+  const [catalogTab, setCatalogTab] = useState<'marcas' | 'categorias'>('categorias')
+  const [newBrandName, setNewBrandName] = useState('')
+  const [newCatName, setNewCatName] = useState('')
+  const [newSubName, setNewSubName] = useState<Record<number, string>>({})
+  const [catalogError, setCatalogError] = useState('')
+  const [catalogBusy, setCatalogBusy] = useState(false)
 
   // Búsqueda, orden y paginación
   const [search, setSearch] = useState('')
@@ -74,7 +120,9 @@ export default function AdminPage() {
       return (
         String(p.id).includes(q) ||
         p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q)
+        p.category.toLowerCase().includes(q) ||
+        (p.brand?.toLowerCase().includes(q) ?? false) ||
+        (p.reference?.toLowerCase().includes(q) ?? false)
       )
     })
   }, [products, search, filterCategory])
@@ -94,6 +142,11 @@ export default function AdminPage() {
   const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PAGE_SIZE))
   const pagedProducts = sortedProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  // Subcategorías disponibles según la categoría elegida en el formulario
+  const formSubcategories = useMemo(() => {
+    return categories.find(c => c.name === form.category)?.subcategories ?? []
+  }, [categories, form.category])
+
   async function fetchProducts() {
     setLoading(true)
     const res = await fetch('/api/products')
@@ -108,14 +161,20 @@ export default function AdminPage() {
     setCategories(data)
   }
 
-  useEffect(() => { fetchProducts(); fetchCategories() }, [])
+  async function fetchBrands() {
+    const res = await fetch('/api/brands')
+    const data = await res.json()
+    setBrands(data)
+  }
+
+  useEffect(() => { fetchProducts(); fetchCategories(); fetchBrands() }, [])
 
   function openCreate() {
     setForm(emptyForm)
     setEditingId(null)
     setError('')
-    setShowNewCategory(false)
-    setNewCategory('')
+    setImgUrl('')
+    setImgError('')
     setShowForm(true)
   }
 
@@ -123,14 +182,19 @@ export default function AdminPage() {
     setForm({
       name: product.name,
       price: formatPrice(String(product.price)),
-      image: product.image ?? '',
+      images: product.images ?? [],
       desc: product.desc,
       category: product.category,
+      subcategory: product.subcategory ?? '',
+      reference: product.reference ?? '',
+      brand: product.brand ?? '',
       discount: String(product.discount ?? 0),
       stock: product.stock,
     })
     setEditingId(product.id)
     setError('')
+    setImgUrl('')
+    setImgError('')
     setShowForm(true)
   }
 
@@ -139,8 +203,64 @@ export default function AdminPage() {
     setEditingId(null)
     setForm(emptyForm)
     setError('')
-    setShowNewCategory(false)
-    setNewCategory('')
+    setImgUrl('')
+    setImgError('')
+  }
+
+  function addImageUrl() {
+    const url = imgUrl.trim()
+    if (!url) return
+    if (form.images.length >= MAX_IMAGES) {
+      setImgError(`Máximo ${MAX_IMAGES} imágenes`)
+      return
+    }
+    setForm({ ...form, images: [...form.images, url] })
+    setImgUrl('')
+    setImgError('')
+  }
+
+  function removeImage(index: number) {
+    setForm({ ...form, images: form.images.filter((_, i) => i !== index) })
+    setImgError('')
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // permite volver a elegir el mismo archivo
+    if (files.length === 0) return
+
+    const available = MAX_IMAGES - form.images.length
+    if (available <= 0) {
+      setImgError(`Máximo ${MAX_IMAGES} imágenes`)
+      return
+    }
+
+    setUploading(true)
+    setImgError('')
+    const uploaded: string[] = []
+    try {
+      for (const file of files.slice(0, available)) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (res.ok && data.url) {
+          uploaded.push(data.url)
+        } else {
+          setImgError(data.error || 'Error al subir la imagen')
+        }
+      }
+      if (uploaded.length > 0) {
+        setForm(prev => ({ ...prev, images: [...prev.images, ...uploaded].slice(0, MAX_IMAGES) }))
+      }
+      if (files.length > available) {
+        setImgError(`Solo se agregaron ${available}; el máximo es ${MAX_IMAGES} imágenes`)
+      }
+    } catch {
+      setImgError('Error de conexión al subir la imagen')
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -151,9 +271,12 @@ export default function AdminPage() {
     const payload = {
       name: form.name,
       price: parsePrice(form.price),
-      image: form.image || null,
+      images: form.images,
       desc: form.desc,
       category: form.category,
+      subcategory: form.subcategory,
+      reference: form.reference,
+      brand: form.brand,
       discount: Math.min(100, Math.max(0, Number(form.discount) || 0)),
       stock: form.stock,
     }
@@ -174,7 +297,6 @@ export default function AdminPage() {
       if (res.ok) {
         closeForm()
         await fetchProducts()
-        await fetchCategories()
       } else {
         const data = await res.json()
         setError(data.error || 'Error al guardar')
@@ -204,6 +326,92 @@ export default function AdminPage() {
     }
   }
 
+  /* --------- Gestión de catálogo (marcas / categorías / subcategorías) --------- */
+
+  async function addBrand() {
+    const name = newBrandName.trim()
+    if (!name) return
+    setCatalogBusy(true)
+    setCatalogError('')
+    try {
+      const res = await fetch('/api/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (res.ok) {
+        setNewBrandName('')
+        await fetchBrands()
+      } else {
+        const data = await res.json()
+        setCatalogError(data.error || 'Error al crear la marca')
+      }
+    } finally {
+      setCatalogBusy(false)
+    }
+  }
+
+  async function deleteBrandItem(id: number) {
+    await fetch(`/api/brands/${id}`, { method: 'DELETE' })
+    await fetchBrands()
+  }
+
+  async function addCategory() {
+    const name = newCatName.trim()
+    if (!name) return
+    setCatalogBusy(true)
+    setCatalogError('')
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (res.ok) {
+        setNewCatName('')
+        await fetchCategories()
+      } else {
+        const data = await res.json()
+        setCatalogError(data.error || 'Error al crear la categoría')
+      }
+    } finally {
+      setCatalogBusy(false)
+    }
+  }
+
+  async function deleteCategoryItem(id: number) {
+    await fetch(`/api/categories/${id}`, { method: 'DELETE' })
+    await fetchCategories()
+  }
+
+  async function addSubcategory(categoryId: number) {
+    const name = (newSubName[categoryId] ?? '').trim()
+    if (!name) return
+    setCatalogBusy(true)
+    setCatalogError('')
+    try {
+      const res = await fetch('/api/subcategories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryId, name }),
+      })
+      if (res.ok) {
+        setNewSubName(prev => ({ ...prev, [categoryId]: '' }))
+        await fetchCategories()
+      } else {
+        const data = await res.json()
+        setCatalogError(data.error || 'Error al crear la subcategoría')
+      }
+    } finally {
+      setCatalogBusy(false)
+    }
+  }
+
+  async function deleteSubcategoryItem(id: number) {
+    await fetch(`/api/subcategories/${id}`, { method: 'DELETE' })
+    await fetchCategories()
+  }
+
   async function handleLogout() {
     await fetch('/api/admin/logout', { method: 'POST' })
     router.push('/admin/login')
@@ -219,6 +427,12 @@ export default function AdminPage() {
           <span className="text-gray-400 dark:text-neutral-500 font-medium text-sm ml-2">/ Admin</span>
         </h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowCatalog(true); setCatalogError('') }}
+            className="bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-xl text-sm uppercase tracking-tighter transition-all"
+          >
+            🏷️ Catálogo
+          </button>
           <button
             onClick={openCreate}
             className="bg-orange-600 hover:bg-orange-500 text-black font-black px-4 py-2 rounded-xl text-sm uppercase tracking-tighter transition-all"
@@ -246,7 +460,7 @@ export default function AdminPage() {
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <input
             type="text"
-            placeholder="Buscar por ID, nombre o categoría..."
+            placeholder="Buscar por ID, nombre, categoría, marca o referencia..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             className="flex-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all placeholder-gray-400 dark:placeholder-neutral-500"
@@ -257,7 +471,7 @@ export default function AdminPage() {
             className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
           >
             <option value="">Todas las categorías</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
           {(search || filterCategory) && (
             <button
@@ -305,6 +519,7 @@ export default function AdminPage() {
                         </span>
                       </th>
                     ))}
+                    <th className="px-4 py-3 text-left">Marca</th>
                     <th className="px-4 py-3 text-center">Stock</th>
                     <th className="px-4 py-3 text-center">Acciones</th>
                   </tr>
@@ -312,18 +527,22 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
                   {pagedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-gray-400 dark:text-neutral-500">
+                      <td colSpan={8} className="text-center py-12 text-gray-400 dark:text-neutral-500">
                         Sin resultados para esa búsqueda.
                       </td>
                     </tr>
                   ) : pagedProducts.map((p) => (
                     <tr key={p.id} className="hover:bg-orange-50/80 dark:hover:bg-neutral-900 transition-colors">
                       <td className="px-4 py-3 text-gray-400 dark:text-neutral-500">{p.id}</td>
-                      <td className="px-4 py-3 font-medium">{p.name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {p.name}
+                        {p.reference && <span className="block text-[10px] text-gray-400 dark:text-neutral-500 font-normal">Ref: {p.reference}</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="bg-orange-100 dark:bg-neutral-800 text-orange-600 dark:text-orange-400 text-xs font-bold px-2 py-1 rounded-full">
                           {p.category}
                         </span>
+                        {p.subcategory && <span className="block text-[10px] text-gray-400 dark:text-neutral-500 mt-1">{p.subcategory}</span>}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-orange-400">
                         ${p.price.toLocaleString('es-AR')}
@@ -337,6 +556,7 @@ export default function AdminPage() {
                           <span className="text-neutral-600 text-xs">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-neutral-300 text-xs">{p.brand || '—'}</td>
                       <td className="px-4 py-3 text-center">
                         {p.stock ? (
                           <span className="bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 text-xs font-black px-2 py-1 rounded-full">En stock</span>
@@ -465,16 +685,153 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Modal gestión de catálogo */}
+      {showCatalog && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8 z-50">
+          <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100 dark:border-neutral-800">
+              <h2 className="text-lg font-black tracking-tighter text-gray-900 dark:text-white">Gestionar catálogo</h2>
+              <button onClick={() => setShowCatalog(false)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl">✕</button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 px-6 pt-4">
+              {(['categorias', 'marcas'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => { setCatalogTab(tab); setCatalogError('') }}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                    catalogTab === tab
+                      ? 'bg-orange-600 text-black'
+                      : 'bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-neutral-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  {tab === 'categorias' ? 'Categorías y subcategorías' : 'Marcas'}
+                </button>
+              ))}
+            </div>
+
+            {catalogError && (
+              <p className="text-red-400 text-sm mx-6 mt-3 bg-red-950/40 border border-red-800 rounded-lg px-3 py-2">{catalogError}</p>
+            )}
+
+            <div className="p-6 overflow-y-auto">
+              {catalogTab === 'marcas' ? (
+                <>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={newBrandName}
+                      onChange={e => setNewBrandName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBrand() } }}
+                      placeholder="Nueva marca (ej. Bosch)"
+                      className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                    />
+                    <button
+                      onClick={addBrand}
+                      disabled={catalogBusy}
+                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black px-4 rounded-xl text-sm transition-all"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                  {brands.length === 0 ? (
+                    <p className="text-gray-400 dark:text-neutral-500 text-sm text-center py-8">No hay marcas todavía.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {brands.map(b => (
+                        <span key={b.id} className="inline-flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-full pl-3 pr-2 py-1.5 text-sm font-medium">
+                          {b.name}
+                          <button onClick={() => deleteBrandItem(b.id)} className="text-gray-400 hover:text-red-500 w-4 h-4 flex items-center justify-center" title="Eliminar">✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex gap-2 mb-5">
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={e => setNewCatName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
+                      placeholder="Nueva categoría (ej. Eléctricas)"
+                      className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                    />
+                    <button
+                      onClick={addCategory}
+                      disabled={catalogBusy}
+                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black px-4 rounded-xl text-sm transition-all"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+
+                  {categories.length === 0 ? (
+                    <p className="text-gray-400 dark:text-neutral-500 text-sm text-center py-8">No hay categorías todavía.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {categories.map(cat => (
+                        <div key={cat.id} className="border border-gray-200 dark:border-neutral-800 rounded-xl p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-bold text-gray-900 dark:text-white">{cat.name}</span>
+                            <button
+                              onClick={() => deleteCategoryItem(cat.id)}
+                              className="text-red-500 hover:text-red-400 text-xs font-bold"
+                              title="Eliminar categoría (y sus subcategorías)"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                          {cat.subcategories.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {cat.subcategories.map(sub => (
+                                <span key={sub.id} className="inline-flex items-center gap-1.5 bg-gray-100 dark:bg-neutral-800 rounded-full pl-3 pr-2 py-1 text-xs font-medium">
+                                  {sub.name}
+                                  <button onClick={() => deleteSubcategoryItem(sub.id)} className="text-gray-400 hover:text-red-500" title="Eliminar">✕</button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newSubName[cat.id] ?? ''}
+                              onChange={e => setNewSubName(prev => ({ ...prev, [cat.id]: e.target.value }))}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubcategory(cat.id) } }}
+                              placeholder="Nueva subcategoría"
+                              className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg px-3 py-1.5 text-gray-900 dark:text-white text-xs focus:outline-none focus:border-orange-500 transition-all"
+                            />
+                            <button
+                              onClick={() => addSubcategory(cat.id)}
+                              disabled={catalogBusy}
+                              className="bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 disabled:opacity-50 text-gray-700 dark:text-white text-xs font-bold px-3 rounded-lg transition-all"
+                            >
+                              + Sub
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal formulario */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 z-50">
-          <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
-            <h2 className="text-lg font-black tracking-tighter mb-6 text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8 z-50">
+          <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+            <h2 className="text-lg font-black tracking-tighter p-6 pb-4 text-gray-900 dark:text-white border-b border-gray-100 dark:border-neutral-800">
               {editingId ? 'Editar Producto' : 'Nuevo Producto'}
             </h2>
 
-            <form onSubmit={handleSave} className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
+              <div className="grid grid-cols-2 gap-4 p-6 overflow-y-auto">
                 <div className="col-span-2">
                   <div className="flex justify-between items-center mb-1.5">
                     <label className="text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest">Nombre *</label>
@@ -528,50 +885,63 @@ export default function AdminPage() {
                   )}
                 </div>
 
+                {/* Categoría */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Categoría *</label>
-                  {!showNewCategory ? (
-                    <div className="flex gap-2">
-                      <select
-                        value={form.category}
-                        onChange={(e) => setForm({ ...form, category: e.target.value })}
-                        required
-                        className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                      >
-                        <option value="">Seleccionar...</option>
-                        {categories.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => { setShowNewCategory(true); setForm({ ...form, category: '' }) }}
-                        className="bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-white text-xs font-bold px-3 rounded-xl transition-all whitespace-nowrap"
-                        title="Nueva categoría"
-                      >
-                        + Nueva
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newCategory}
-                        onChange={(e) => { setNewCategory(e.target.value); setForm({ ...form, category: e.target.value }) }}
-                        placeholder="Nombre de la nueva categoría"
-                        required
-                        autoFocus
-                        className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-orange-500 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setShowNewCategory(false); setNewCategory(''); setForm({ ...form, category: '' }) }}
-                        className="bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-white text-xs font-bold px-3 rounded-xl transition-all"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value, subcategory: '' })}
+                    required
+                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Subcategoría */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Subcategoría</label>
+                  <select
+                    value={form.subcategory}
+                    onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
+                    disabled={formSubcategories.length === 0}
+                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all disabled:opacity-50"
+                  >
+                    <option value="">{formSubcategories.length === 0 ? 'Sin subcategorías' : 'Seleccionar...'}</option>
+                    {formSubcategories.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Marca */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Marca</label>
+                  <select
+                    value={form.brand}
+                    onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                  >
+                    <option value="">Sin marca</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Referencia */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Referencia</label>
+                  <input
+                    type="text"
+                    value={form.reference}
+                    onChange={(e) => setForm({ ...form, reference: e.target.value })}
+                    placeholder="Ej. ABC-123"
+                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                  />
                 </div>
 
                 <div className="col-span-2">
@@ -589,7 +959,8 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="col-span-2">                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-2">Stock</label>
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-2">Stock</label>
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, stock: !form.stock })}
@@ -609,34 +980,91 @@ export default function AdminPage() {
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">URL de imagen</label>
-                  <input
-                    type="text"
-                    value={form.image}
-                    onChange={(e) => setForm({ ...form, image: e.target.value })}
-                    placeholder="https://... o /products/mi-producto.jpg"
-                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                  />
-                  {form.image && (
-                    <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-800 flex items-center justify-center h-40">
-                      <img
-                        src={form.image}
-                        alt="Preview"
-                        className="h-full w-full object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                      />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest">Imágenes</label>
+                    <span className="text-xs font-medium text-gray-400 dark:text-neutral-500">{form.images.length}/{MAX_IMAGES}</span>
+                  </div>
+
+                  {/* Miniaturas de las imágenes agregadas */}
+                  {form.images.length > 0 && (
+                    <div className="grid grid-cols-6 gap-2 mb-3">
+                      {form.images.map((img, i) => (
+                        <div key={i} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-800">
+                          <img
+                            src={img}
+                            alt={`Imagen ${i + 1}`}
+                            className="h-full w-full object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2' }}
+                          />
+                          {i === 0 && (
+                            <span className="absolute bottom-0 inset-x-0 bg-orange-600 text-black text-[8px] font-black text-center uppercase tracking-tighter py-0.5">Portada</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeImage(i)}
+                            title="Quitar imagen"
+                            className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/70 text-white text-xs hover:bg-red-600 transition-all"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
+
+                  {form.images.length < MAX_IMAGES && (
+                    <>
+                      {/* Agregar por URL */}
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={imgUrl}
+                          onChange={(e) => setImgUrl(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addImageUrl() } }}
+                          placeholder="Pegá una URL: https://... o /products/foto.jpg"
+                          className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={addImageUrl}
+                          className="bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-white text-xs font-bold px-4 rounded-xl transition-all whitespace-nowrap"
+                        >
+                          + URL
+                        </button>
+                      </div>
+
+                      {/* Subir desde la PC */}
+                      <label className={`flex items-center justify-center gap-2 w-full border border-dashed rounded-xl px-4 py-3 text-sm font-bold transition-all cursor-pointer ${
+                        uploading
+                          ? 'border-orange-500 text-orange-500 cursor-wait'
+                          : 'border-gray-300 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:border-orange-500 hover:text-orange-500'
+                      }`}>
+                        {uploading ? '⏳ Subiendo...' : '📁 Subir desde la PC'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          disabled={uploading}
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {imgError && (
+                    <p className="text-red-400 text-xs mt-2 font-medium">{imgError}</p>
+                  )}
                 </div>
+
+                {error && (
+                  <p className="col-span-2 text-red-400 text-sm bg-red-950/40 border border-red-800 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
               </div>
 
-              {error && (
-                <p className="text-red-400 text-sm bg-red-950/40 border border-red-800 rounded-lg px-3 py-2">
-                  {error}
-                </p>
-              )}
-
-              <div className="flex gap-3 mt-2">
+              <div className="flex gap-3 p-6 pt-4 border-t border-gray-100 dark:border-neutral-800">
                 <button
                   type="button"
                   onClick={closeForm}
