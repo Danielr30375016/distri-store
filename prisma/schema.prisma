@@ -22,16 +22,29 @@ model Product {
   brand       String?
   discount    Int      @default(0)
   stock       Boolean  @default(true)
+  quantity    Int      @default(0)
+}
+
+model Banner {
+  id      Int     @id @default(autoincrement())
+  image   String
+  title   String  @default("")
+  isPromo Boolean @default(false)
+  price   Int?
+  order   Int     @default(0)
+  active  Boolean @default(true)
 }
 
 model Brand {
-  id   Int    @id @default(autoincrement())
-  name String @unique
+  id    Int     @id @default(autoincrement())
+  name  String  @unique
+  image String?
 }
 
 model Category {
   id            Int           @id @default(autoincrement())
   name          String        @unique
+  image         String?
   subcategories Subcategory[]
 }
 

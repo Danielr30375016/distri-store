@@ -10,6 +10,10 @@ export default async function MarcasPage() {
     if (p.brand) countByBrand.set(p.brand, (countByBrand.get(p.brand) ?? 0) + 1)
   }
 
+  // Imagen por marca (las administradas pueden tener logo)
+  const imageByBrand = new Map<string, string | null>()
+  for (const b of brands) imageByBrand.set(b.name, b.image)
+
   // Marcas administradas + cualquier marca usada en productos que no esté en la lista
   const brandNames = new Set(brands.map(b => b.name))
   for (const name of countByBrand.keys()) brandNames.add(name)
@@ -34,9 +38,18 @@ export default async function MarcasPage() {
             <Link
               key={name}
               href={`/productos?marca=${encodeURIComponent(name)}`}
-              className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 hover:border-orange-500 hover:-translate-y-1 transition-all group shadow-sm dark:shadow-none min-h-[130px]"
+              className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-orange-500 hover:-translate-y-1 transition-all group shadow-sm dark:shadow-none min-h-[130px]"
             >
-              <span className="text-3xl group-hover:scale-110 transition-transform">🏷️</span>
+              {imageByBrand.get(name) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imageByBrand.get(name) as string}
+                  alt={name}
+                  className="h-12 w-full object-contain group-hover:scale-110 transition-transform"
+                />
+              ) : (
+                <span className="text-3xl group-hover:scale-110 transition-transform">🏷️</span>
+              )}
               <span className="font-black text-gray-900 dark:text-white text-center uppercase tracking-tighter leading-tight group-hover:text-orange-500 transition-colors">
                 {name}
               </span>

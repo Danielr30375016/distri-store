@@ -3,21 +3,21 @@ export const site = {
   name: 'DistriStore',
 
   // Contacto
-  phoneDisplay: '+57 300 123 4567',
-  phoneWhatsapp: '573001234567', // solo números, con código de país (57 = Colombia)
+  phoneDisplay: '+57 312 4488144',
+  phoneWhatsapp: '573124488144', // solo números, con código de país (57 = Colombia)
   email: 'contacto@distristore.com',
 
   // Dirección / sede
-  address: 'Cra. 00 #00-00, Barrio Centro',
+  address: 'Cll 17 # 103A - 33',
   city: 'Bogotá, Colombia',
   hours: 'Lun a Sáb: 8:00 a.m. – 6:00 p.m.',
 
   // Coordenadas de la sede (para el mapa de OpenStreetMap)
   // Reemplazá lat/lng por las de tu local. Podés obtenerlas en https://www.openstreetmap.org
   map: {
-    lat: 4.60971,
-    lng: -74.08175,
-    zoom: 16,
+    lat: 4.6787,
+    lng: -74.1412,
+    zoom: 17,
   },
 }
 

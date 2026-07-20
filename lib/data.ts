@@ -12,11 +12,23 @@ export interface Product {
   brand: string | null
   discount: number
   stock: boolean
+  quantity: number
+}
+
+export interface Banner {
+  id: number
+  image: string
+  title: string
+  isPromo: boolean
+  price: number | null
+  order: number
+  active: boolean
 }
 
 export interface Brand {
   id: number
   name: string
+  image: string | null
 }
 
 export interface Subcategory {
@@ -28,6 +40,7 @@ export interface Subcategory {
 export interface Category {
   id: number
   name: string
+  image: string | null
   subcategories: Subcategory[]
 }
 
@@ -44,6 +57,7 @@ const mockProducts: Product[] = [
     brand: "Stanley",
     discount: 0,
     stock: true,
+    quantity: 25,
   },
   {
     id: 2,
@@ -57,6 +71,7 @@ const mockProducts: Product[] = [
     brand: "DeWalt",
     discount: 10,
     stock: true,
+    quantity: 8,
   },
   {
     id: 3,
@@ -70,6 +85,7 @@ const mockProducts: Product[] = [
     brand: "Truper",
     discount: 0,
     stock: false,
+    quantity: 0,
   },
 ]
 
@@ -118,8 +134,12 @@ export async function getBrands(): Promise<Brand[]> {
   }
 }
 
-export async function createBrand(name: string): Promise<Brand> {
-  return prisma.brand.create({ data: { name } })
+export async function createBrand(name: string, image?: string | null): Promise<Brand> {
+  return prisma.brand.create({ data: { name, image: image ?? null } })
+}
+
+export async function updateBrand(id: number, data: { name?: string; image?: string | null }): Promise<Brand> {
+  return prisma.brand.update({ where: { id }, data })
 }
 
 export async function deleteBrand(id: number): Promise<void> {
@@ -139,9 +159,17 @@ export async function getCategories(): Promise<Category[]> {
   }
 }
 
-export async function createCategory(name: string): Promise<Category> {
+export async function createCategory(name: string, image?: string | null): Promise<Category> {
   return prisma.category.create({
-    data: { name },
+    data: { name, image: image ?? null },
+    include: { subcategories: true },
+  })
+}
+
+export async function updateCategory(id: number, data: { name?: string; image?: string | null }): Promise<Category> {
+  return prisma.category.update({
+    where: { id },
+    data,
     include: { subcategories: true },
   })
 }
@@ -156,4 +184,37 @@ export async function createSubcategory(categoryId: number, name: string): Promi
 
 export async function deleteSubcategory(id: number): Promise<void> {
   await prisma.subcategory.delete({ where: { id } })
+}
+
+/* ----------------------------- Banners ----------------------------- */
+
+export async function getBanners(): Promise<Banner[]> {
+  try {
+    return await prisma.banner.findMany({ orderBy: [{ order: 'asc' }, { id: 'asc' }] })
+  } catch {
+    return []
+  }
+}
+
+export async function getActiveBanners(): Promise<Banner[]> {
+  try {
+    return await prisma.banner.findMany({
+      where: { active: true },
+      orderBy: [{ order: 'asc' }, { id: 'asc' }],
+    })
+  } catch {
+    return []
+  }
+}
+
+export async function createBanner(data: Omit<Banner, 'id'>): Promise<Banner> {
+  return prisma.banner.create({ data })
+}
+
+export async function updateBanner(id: number, data: Partial<Omit<Banner, 'id'>>): Promise<Banner> {
+  return prisma.banner.update({ where: { id }, data })
+}
+
+export async function deleteBanner(id: number): Promise<void> {
+  await prisma.banner.delete({ where: { id } })
 }

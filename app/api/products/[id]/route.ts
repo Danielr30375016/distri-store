@@ -28,7 +28,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock } = body
+    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock, quantity } = body
     const product = await updateProduct(Number(id), {
       ...(name && { name }),
       ...(price != null && { price: Number(price) }),
@@ -44,6 +44,7 @@ export async function PUT(
       }),
       discount: discount != null ? Number(discount) : 0,
       stock: stock !== false,
+      ...(quantity != null && { quantity: Math.max(0, Number(quantity) || 0) }),
     })
     return NextResponse.json(product)
   } catch {

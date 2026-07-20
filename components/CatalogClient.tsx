@@ -10,6 +10,7 @@ interface CatalogClientProps {
   initialSubcategory?: string
   initialBrand?: string
   initialSearch?: string
+  initialOffers?: boolean
 }
 
 export default function CatalogClient({
@@ -18,17 +19,21 @@ export default function CatalogClient({
   initialSubcategory = '',
   initialBrand = '',
   initialSearch = '',
+  initialOffers = false,
 }: CatalogClientProps) {
   const [search, setSearch] = useState(initialSearch)
   const [maxPrice, setMaxPrice] = useState(2000000)
   const [selectedCategory, setSelectedCategory] = useState(initialCategory)
   const [selectedSubcategory, setSelectedSubcategory] = useState(initialSubcategory)
   const [selectedBrand, setSelectedBrand] = useState(initialBrand)
+  const [onlyOffers, setOnlyOffers] = useState(initialOffers)
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => { setSelectedCategory(initialCategory) }, [initialCategory])
   useEffect(() => { setSelectedBrand(initialBrand) }, [initialBrand])
   useEffect(() => { setSelectedSubcategory(initialSubcategory) }, [initialSubcategory])
+  useEffect(() => { setOnlyOffers(initialOffers) }, [initialOffers])
+  useEffect(() => { setSearch(initialSearch) }, [initialSearch])
 
   // Listas derivadas de los productos
   const categories = useMemo(
@@ -50,6 +55,7 @@ export default function CatalogClient({
     const q = search.toLowerCase().trim()
     return products.filter((product) => {
       if (product.price > maxPrice) return false
+      if (onlyOffers && !(product.discount > 0)) return false
       if (selectedCategory && product.category !== selectedCategory) return false
       if (selectedSubcategory && product.subcategory !== selectedSubcategory) return false
       if (selectedBrand && product.brand !== selectedBrand) return false
@@ -60,20 +66,31 @@ export default function CatalogClient({
         (product.brand?.toLowerCase().includes(q) ?? false)
       )
     })
-  }, [products, search, maxPrice, selectedCategory, selectedSubcategory, selectedBrand])
+  }, [products, search, maxPrice, selectedCategory, selectedSubcategory, selectedBrand, onlyOffers])
 
-  const hasActiveFilters = search || selectedCategory || selectedSubcategory || selectedBrand || maxPrice < 2000000
+  const hasActiveFilters = search || selectedCategory || selectedSubcategory || selectedBrand || onlyOffers || maxPrice < 2000000
 
   function clearFilters() {
     setSearch('')
     setSelectedCategory('')
     setSelectedSubcategory('')
     setSelectedBrand('')
+    setOnlyOffers(false)
     setMaxPrice(2000000)
   }
 
   const filterControls = (
     <div className="space-y-6">
+      <label className="flex items-center gap-3 cursor-pointer select-none bg-orange-50 dark:bg-neutral-800 border border-orange-200 dark:border-neutral-700 rounded-xl px-4 py-3">
+        <input
+          type="checkbox"
+          checked={onlyOffers}
+          onChange={(e) => setOnlyOffers(e.target.checked)}
+          className="w-4 h-4 accent-orange-500"
+        />
+        <span className="text-sm font-black uppercase text-orange-600 dark:text-orange-500">🏷️ Solo ofertas</span>
+      </label>
+
       <div>
         <h3 className="text-orange-500 font-black uppercase text-sm mb-3">Buscar</h3>
         <input
@@ -206,7 +223,7 @@ export default function CatalogClient({
         {/* GRID DE PRODUCTOS */}
         <div className="flex-grow min-w-0">
           <h2 className="text-2xl md:text-3xl font-black mb-6 md:mb-8 uppercase italic tracking-tighter text-gray-900 dark:text-white">
-            {selectedBrand ? <>Marca <span className="text-orange-500">{selectedBrand}</span> </> : 'Resultados '}
+            {onlyOffers ? <>🏷️ Ofertas </> : selectedBrand ? <>Marca <span className="text-orange-500">{selectedBrand}</span> </> : 'Resultados '}
             <span className="text-orange-500">({filteredProducts.length})</span>
           </h2>
 

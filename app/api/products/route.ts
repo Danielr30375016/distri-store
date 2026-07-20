@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock } = body
+    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock, quantity } = body
     if (!name || price == null || !desc || !category) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       brand: brand?.trim() || null,
       discount: Number(discount ?? 0),
       stock: stock !== false,
+      quantity: Math.max(0, Number(quantity ?? 0) || 0),
     })
     return NextResponse.json(product, { status: 201 })
   } catch (err) {

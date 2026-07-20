@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/src/context/ThemeContext'
+import { compressImage } from '@/lib/imageCompress'
 
 interface Product {
   id: number
@@ -15,6 +16,7 @@ interface Product {
   brand: string | null
   discount: number
   stock: boolean
+  quantity: number
 }
 
 interface Subcategory {
@@ -26,12 +28,33 @@ interface Subcategory {
 interface Category {
   id: number
   name: string
+  image: string | null
   subcategories: Subcategory[]
 }
 
 interface Brand {
   id: number
   name: string
+  image: string | null
+}
+
+interface Banner {
+  id: number
+  image: string
+  title: string
+  isPromo: boolean
+  price: number | null
+  order: number
+  active: boolean
+}
+
+const emptyBanner = {
+  image: '',
+  title: '',
+  isPromo: false,
+  price: '',
+  order: '0',
+  active: true,
 }
 
 const emptyForm = {
@@ -45,6 +68,7 @@ const emptyForm = {
   brand: '',
   discount: '0',
   stock: true,
+  quantity: '0',
 }
 
 const MAX_IMAGES = 6
@@ -81,6 +105,15 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
 
+  // Banners del carrusel
+  const [banners, setBanners] = useState<Banner[]>([])
+  const [showBanners, setShowBanners] = useState(false)
+  const [bannerForm, setBannerForm] = useState(emptyBanner)
+  const [editingBannerId, setEditingBannerId] = useState<number | null>(null)
+  const [bannerBusy, setBannerBusy] = useState(false)
+  const [bannerUploading, setBannerUploading] = useState(false)
+  const [bannerError, setBannerError] = useState('')
+
   // Manejo de imágenes (hasta 6, por URL o subida desde la PC)
   const [imgUrl, setImgUrl] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -90,10 +123,13 @@ export default function AdminPage() {
   const [showCatalog, setShowCatalog] = useState(false)
   const [catalogTab, setCatalogTab] = useState<'marcas' | 'categorias'>('categorias')
   const [newBrandName, setNewBrandName] = useState('')
+  const [newBrandImage, setNewBrandImage] = useState('')
   const [newCatName, setNewCatName] = useState('')
+  const [newCatImage, setNewCatImage] = useState('')
   const [newSubName, setNewSubName] = useState<Record<number, string>>({})
   const [catalogError, setCatalogError] = useState('')
   const [catalogBusy, setCatalogBusy] = useState(false)
+  const [catalogUploading, setCatalogUploading] = useState('') // clave del item que está subiendo imagen
 
   // Búsqueda, orden y paginación
   const [search, setSearch] = useState('')
@@ -167,7 +203,103 @@ export default function AdminPage() {
     setBrands(data)
   }
 
-  useEffect(() => { fetchProducts(); fetchCategories(); fetchBrands() }, [])
+  async function fetchBanners() {
+    const res = await fetch('/api/banners')
+    const data = await res.json()
+    setBanners(Array.isArray(data) ? data : [])
+  }
+
+  useEffect(() => { fetchProducts(); fetchCategories(); fetchBrands(); fetchBanners() }, [])
+
+  /* --------------------------- Banners --------------------------- */
+
+  function resetBannerForm() {
+    setBannerForm(emptyBanner)
+    setEditingBannerId(null)
+    setBannerError('')
+  }
+
+  function editBanner(b: Banner) {
+    setBannerForm({
+      image: b.image,
+      title: b.title,
+      isPromo: b.isPromo,
+      price: b.price != null ? String(b.price) : '',
+      order: String(b.order),
+      active: b.active,
+    })
+    setEditingBannerId(b.id)
+    setBannerError('')
+  }
+
+  async function handleBannerImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const original = e.target.files?.[0]
+    e.target.value = ''
+    if (!original) return
+    setBannerUploading(true)
+    setBannerError('')
+    try {
+      const file = await compressImage(original)
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok && data.url) {
+        setBannerForm(prev => ({ ...prev, image: data.url }))
+      } else {
+        setBannerError(data.error || 'Error al subir la imagen')
+      }
+    } catch {
+      setBannerError('Error de conexión al subir la imagen')
+    } finally {
+      setBannerUploading(false)
+    }
+  }
+
+  async function saveBanner() {
+    if (!bannerForm.image.trim()) {
+      setBannerError('La imagen es obligatoria')
+      return
+    }
+    setBannerBusy(true)
+    setBannerError('')
+    const payload = {
+      image: bannerForm.image.trim(),
+      title: bannerForm.title.trim(),
+      isPromo: bannerForm.isPromo,
+      price: bannerForm.isPromo ? (parsePrice(bannerForm.price) || null) : null,
+      order: Number(bannerForm.order) || 0,
+      active: bannerForm.active,
+    }
+    try {
+      const res = editingBannerId
+        ? await fetch(`/api/banners/${editingBannerId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/banners', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+      if (res.ok) {
+        resetBannerForm()
+        await fetchBanners()
+      } else {
+        const data = await res.json()
+        setBannerError(data.error || 'Error al guardar el banner')
+      }
+    } finally {
+      setBannerBusy(false)
+    }
+  }
+
+  async function deleteBannerItem(id: number) {
+    await fetch(`/api/banners/${id}`, { method: 'DELETE' })
+    if (editingBannerId === id) resetBannerForm()
+    await fetchBanners()
+  }
 
   function openCreate() {
     setForm(emptyForm)
@@ -190,6 +322,7 @@ export default function AdminPage() {
       brand: product.brand ?? '',
       discount: String(product.discount ?? 0),
       stock: product.stock,
+      quantity: String(product.quantity ?? 0),
     })
     setEditingId(product.id)
     setError('')
@@ -239,7 +372,8 @@ export default function AdminPage() {
     setImgError('')
     const uploaded: string[] = []
     try {
-      for (const file of files.slice(0, available)) {
+      for (const original of files.slice(0, available)) {
+        const file = await compressImage(original)
         const fd = new FormData()
         fd.append('file', file)
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
@@ -279,6 +413,7 @@ export default function AdminPage() {
       brand: form.brand,
       discount: Math.min(100, Math.max(0, Number(form.discount) || 0)),
       stock: form.stock,
+      quantity: Math.max(0, Number(form.quantity) || 0),
     }
 
     try {
@@ -328,6 +463,18 @@ export default function AdminPage() {
 
   /* --------- Gestión de catálogo (marcas / categorías / subcategorías) --------- */
 
+  // Sube un archivo (comprimido) y devuelve la URL, o null si falla.
+  async function uploadFile(file: File): Promise<string | null> {
+    const compressed = await compressImage(file)
+    const fd = new FormData()
+    fd.append('file', compressed)
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const data = await res.json()
+    if (res.ok && data.url) return data.url
+    setCatalogError(data.error || 'Error al subir la imagen')
+    return null
+  }
+
   async function addBrand() {
     const name = newBrandName.trim()
     if (!name) return
@@ -337,10 +484,11 @@ export default function AdminPage() {
       const res = await fetch('/api/brands', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, image: newBrandImage || null }),
       })
       if (res.ok) {
         setNewBrandName('')
+        setNewBrandImage('')
         await fetchBrands()
       } else {
         const data = await res.json()
@@ -351,9 +499,26 @@ export default function AdminPage() {
     }
   }
 
+  async function setBrandImage(id: number, image: string | null) {
+    const res = await fetch(`/api/brands/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image }),
+    })
+    if (res.ok) await fetchBrands()
+    else {
+      const data = await res.json()
+      setCatalogError(data.error || 'Error al actualizar la marca')
+    }
+  }
+
   async function deleteBrandItem(id: number) {
-    await fetch(`/api/brands/${id}`, { method: 'DELETE' })
-    await fetchBrands()
+    const res = await fetch(`/api/brands/${id}`, { method: 'DELETE' })
+    if (res.ok) await fetchBrands()
+    else {
+      const data = await res.json().catch(() => ({}))
+      setCatalogError(data.error || 'Error al eliminar la marca')
+    }
   }
 
   async function addCategory() {
@@ -365,10 +530,11 @@ export default function AdminPage() {
       const res = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, image: newCatImage || null }),
       })
       if (res.ok) {
         setNewCatName('')
+        setNewCatImage('')
         await fetchCategories()
       } else {
         const data = await res.json()
@@ -379,9 +545,49 @@ export default function AdminPage() {
     }
   }
 
+  async function setCategoryImage(id: number, image: string | null) {
+    const res = await fetch(`/api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image }),
+    })
+    if (res.ok) await fetchCategories()
+    else {
+      const data = await res.json()
+      setCatalogError(data.error || 'Error al actualizar la categoría')
+    }
+  }
+
   async function deleteCategoryItem(id: number) {
-    await fetch(`/api/categories/${id}`, { method: 'DELETE' })
-    await fetchCategories()
+    const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' })
+    if (res.ok) await fetchCategories()
+    else {
+      const data = await res.json().catch(() => ({}))
+      setCatalogError(data.error || 'Error al eliminar la categoría')
+    }
+  }
+
+  // Maneja la subida de imagen para "nueva marca/categoría" o un item existente.
+  async function handleCatalogImageUpload(
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'new-brand' | 'new-cat' | { type: 'brand' | 'cat'; id: number }
+  ) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const key = typeof target === 'string' ? target : `${target.type}-${target.id}`
+    setCatalogUploading(key)
+    setCatalogError('')
+    try {
+      const url = await uploadFile(file)
+      if (!url) return
+      if (target === 'new-brand') setNewBrandImage(url)
+      else if (target === 'new-cat') setNewCatImage(url)
+      else if (target.type === 'brand') await setBrandImage(target.id, url)
+      else await setCategoryImage(target.id, url)
+    } finally {
+      setCatalogUploading('')
+    }
   }
 
   async function addSubcategory(categoryId: number) {
@@ -428,10 +634,16 @@ export default function AdminPage() {
         </h1>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => { setShowBanners(true); resetBannerForm() }}
+            className="bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-xl text-sm uppercase tracking-tighter transition-all"
+          >
+            🖼️ Banners
+          </button>
+          <button
             onClick={() => { setShowCatalog(true); setCatalogError('') }}
             className="bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-xl text-sm uppercase tracking-tighter transition-all"
           >
-            🏷️ Catálogo
+            🏷️ Categorías
           </button>
           <button
             onClick={openCreate}
@@ -520,6 +732,7 @@ export default function AdminPage() {
                       </th>
                     ))}
                     <th className="px-4 py-3 text-left">Marca</th>
+                    <th className="px-4 py-3 text-center">Cant.</th>
                     <th className="px-4 py-3 text-center">Stock</th>
                     <th className="px-4 py-3 text-center">Acciones</th>
                   </tr>
@@ -527,7 +740,7 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
                   {pagedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-12 text-gray-400 dark:text-neutral-500">
+                      <td colSpan={9} className="text-center py-12 text-gray-400 dark:text-neutral-500">
                         Sin resultados para esa búsqueda.
                       </td>
                     </tr>
@@ -557,6 +770,17 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-neutral-300 text-xs">{p.brand || '—'}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`text-sm font-bold ${
+                          p.quantity === 0
+                            ? 'text-red-500'
+                            : p.quantity <= 5
+                              ? 'text-yellow-600 dark:text-yellow-400'
+                              : 'text-gray-700 dark:text-neutral-200'
+                        }`}>
+                          {p.quantity ?? 0}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-center">
                         {p.stock ? (
                           <span className="bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 text-xs font-black px-2 py-1 rounded-full">En stock</span>
@@ -685,6 +909,163 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Modal gestión de banners */}
+      {showBanners && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8 z-50">
+          <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100 dark:border-neutral-800">
+              <h2 className="text-lg font-black tracking-tighter text-gray-900 dark:text-white">Banners del carrusel</h2>
+              <button onClick={() => { setShowBanners(false); resetBannerForm() }} className="text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl">✕</button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Formulario crear / editar banner */}
+              <div className="border border-gray-200 dark:border-neutral-800 rounded-2xl p-4 space-y-4">
+                <h3 className="font-black text-sm uppercase tracking-tighter text-gray-900 dark:text-white">
+                  {editingBannerId ? 'Editar banner' : 'Nuevo banner'}
+                </h3>
+
+                {/* Imagen */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Imagen *</label>
+                  {bannerForm.image ? (
+                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-gray-200 dark:border-neutral-700 mb-2 bg-gray-100 dark:bg-neutral-800">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={bannerForm.image} alt="Vista previa" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setBannerForm(prev => ({ ...prev, image: '' }))}
+                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/70 text-white text-xs hover:bg-red-600 transition-all"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={`flex items-center justify-center gap-2 w-full border border-dashed rounded-xl px-4 py-6 text-sm font-bold transition-all cursor-pointer ${
+                      bannerUploading
+                        ? 'border-orange-500 text-orange-500 cursor-wait'
+                        : 'border-gray-300 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:border-orange-500 hover:text-orange-500'
+                    }`}>
+                      {bannerUploading ? '⏳ Subiendo...' : '📁 Subir imagen del banner'}
+                      <input type="file" accept="image/*" disabled={bannerUploading} onChange={handleBannerImageUpload} className="hidden" />
+                    </label>
+                  )}
+                  <input
+                    type="text"
+                    value={bannerForm.image}
+                    onChange={e => setBannerForm({ ...bannerForm, image: e.target.value })}
+                    placeholder="…o pega una URL de imagen"
+                    className="mt-2 w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-xs focus:outline-none focus:border-orange-500 transition-all"
+                  />
+                </div>
+
+                {/* Descripción corta */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Descripción corta</label>
+                  <input
+                    type="text"
+                    value={bannerForm.title}
+                    onChange={e => setBannerForm({ ...bannerForm, title: e.target.value.slice(0, 120) })}
+                    placeholder="Ej. Todo en herramientas hasta 40% OFF"
+                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Orden */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Orden</label>
+                    <input
+                      type="number"
+                      value={bannerForm.order}
+                      onChange={e => setBannerForm({ ...bannerForm, order: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                    />
+                  </div>
+                  {/* Precio (solo si está en promo) */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Precio (opcional)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">$</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={bannerForm.price}
+                        onChange={e => setBannerForm({ ...bannerForm, price: formatPrice(e.target.value) })}
+                        disabled={!bannerForm.isPromo}
+                        placeholder="0"
+                        className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl pl-8 pr-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Toggles */}
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={bannerForm.isPromo} onChange={e => setBannerForm({ ...bannerForm, isPromo: e.target.checked })} className="w-4 h-4 accent-orange-500" />
+                    <span className="text-sm font-bold text-gray-700 dark:text-neutral-300">En promoción</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={bannerForm.active} onChange={e => setBannerForm({ ...bannerForm, active: e.target.checked })} className="w-4 h-4 accent-green-500" />
+                    <span className="text-sm font-bold text-gray-700 dark:text-neutral-300">Visible en la web</span>
+                  </label>
+                </div>
+
+                {bannerError && (
+                  <p className="text-red-400 text-sm bg-red-950/40 border border-red-800 rounded-lg px-3 py-2">{bannerError}</p>
+                )}
+
+                <div className="flex gap-2">
+                  {editingBannerId && (
+                    <button onClick={resetBannerForm} className="flex-1 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white font-bold py-2.5 rounded-xl text-sm transition-all">
+                      Cancelar
+                    </button>
+                  )}
+                  <button
+                    onClick={saveBanner}
+                    disabled={bannerBusy || bannerUploading}
+                    className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black py-2.5 rounded-xl text-sm uppercase tracking-tighter transition-all"
+                  >
+                    {bannerBusy ? 'Guardando...' : editingBannerId ? 'Guardar cambios' : 'Agregar banner'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de banners */}
+              {banners.length === 0 ? (
+                <p className="text-gray-400 dark:text-neutral-500 text-sm text-center py-6">No hay banners todavía. El home mostrará una imagen por defecto.</p>
+              ) : (
+                <div className="space-y-2">
+                  {banners.map(b => (
+                    <div key={b.id} className="flex items-center gap-3 border border-gray-200 dark:border-neutral-800 rounded-xl p-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={b.image} alt={b.title} className="w-20 h-12 object-cover rounded-lg bg-gray-100 dark:bg-neutral-800 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{b.title || <span className="text-gray-400">(sin texto)</span>}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          <span className="text-[10px] font-bold text-gray-400 dark:text-neutral-500">Orden {b.order}</span>
+                          {b.isPromo && <span className="text-[10px] font-black bg-orange-100 dark:bg-neutral-800 text-orange-600 dark:text-orange-400 px-1.5 rounded-full">PROMO{b.price != null ? ` $${b.price.toLocaleString('es-CO')}` : ''}</span>}
+                          <span className={`text-[10px] font-black px-1.5 rounded-full ${b.active ? 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400'}`}>
+                            {b.active ? 'Visible' : 'Oculto'}
+                          </span>
+                        </div>
+                      </div>
+                      <button onClick={() => editBanner(b)} className="bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all">
+                        Editar
+                      </button>
+                      <button onClick={() => deleteBannerItem(b.id)} className="bg-red-100 dark:bg-red-950 hover:bg-red-200 dark:hover:bg-red-900 text-red-700 dark:text-red-400 text-xs font-bold px-3 py-1.5 rounded-lg transition-all">
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal gestión de catálogo */}
       {showCatalog && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8 z-50">
@@ -718,54 +1099,120 @@ export default function AdminPage() {
             <div className="p-6 overflow-y-auto">
               {catalogTab === 'marcas' ? (
                 <>
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      type="text"
-                      value={newBrandName}
-                      onChange={e => setNewBrandName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBrand() } }}
-                      placeholder="Nueva marca (ej. Bosch)"
-                      className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                    />
-                    <button
-                      onClick={addBrand}
-                      disabled={catalogBusy}
-                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black px-4 rounded-xl text-sm transition-all"
-                    >
-                      Agregar
-                    </button>
+                  {/* Alta de marca con imagen opcional */}
+                  <div className="border border-gray-200 dark:border-neutral-800 rounded-xl p-3 mb-5">
+                    <div className="flex gap-3">
+                      <label className={`shrink-0 w-16 h-16 rounded-lg border border-dashed flex items-center justify-center overflow-hidden cursor-pointer text-center text-[10px] font-bold transition-all ${
+                        catalogUploading === 'new-brand' ? 'border-orange-500 text-orange-500' : 'border-gray-300 dark:border-neutral-600 text-gray-400 hover:border-orange-500 hover:text-orange-500'
+                      } bg-gray-50 dark:bg-neutral-800`}>
+                        {newBrandImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={newBrandImage} alt="" className="w-full h-full object-contain" />
+                        ) : catalogUploading === 'new-brand' ? '⏳' : '📁 Logo'}
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleCatalogImageUpload(e, 'new-brand')} />
+                      </label>
+                      <div className="flex-1 flex flex-col gap-2">
+                        <input
+                          type="text"
+                          value={newBrandName}
+                          onChange={e => setNewBrandName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBrand() } }}
+                          placeholder="Nueva marca (ej. Bosch)"
+                          className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newBrandImage}
+                            onChange={e => setNewBrandImage(e.target.value)}
+                            placeholder="…o pega la URL del logo"
+                            className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-1.5 text-gray-900 dark:text-white text-xs focus:outline-none focus:border-orange-500 transition-all"
+                          />
+                          <button
+                            onClick={addBrand}
+                            disabled={catalogBusy}
+                            className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black px-4 rounded-xl text-sm transition-all"
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+
                   {brands.length === 0 ? (
                     <p className="text-gray-400 dark:text-neutral-500 text-sm text-center py-8">No hay marcas todavía.</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-2">
                       {brands.map(b => (
-                        <span key={b.id} className="inline-flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-full pl-3 pr-2 py-1.5 text-sm font-medium">
-                          {b.name}
-                          <button onClick={() => deleteBrandItem(b.id)} className="text-gray-400 hover:text-red-500 w-4 h-4 flex items-center justify-center" title="Eliminar">✕</button>
-                        </span>
+                        <div key={b.id} className="flex items-center gap-3 border border-gray-200 dark:border-neutral-800 rounded-xl p-2">
+                          <div className="shrink-0 w-12 h-12 rounded-lg bg-gray-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
+                            {b.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={b.image} alt={b.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="text-lg">🏷️</span>
+                            )}
+                          </div>
+                          <span className="flex-1 min-w-0 truncate font-bold text-gray-900 dark:text-white">{b.name}</span>
+                          <label className={`cursor-pointer text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
+                            catalogUploading === `brand-${b.id}` ? 'text-orange-500' : 'bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white'
+                          }`}>
+                            {catalogUploading === `brand-${b.id}` ? '⏳' : (b.image ? 'Cambiar' : 'Imagen')}
+                            <input type="file" accept="image/*" className="hidden" onChange={e => handleCatalogImageUpload(e, { type: 'brand', id: b.id })} />
+                          </label>
+                          {b.image && (
+                            <button onClick={() => setBrandImage(b.id, null)} className="text-gray-400 hover:text-red-500 text-xs font-bold" title="Quitar imagen">Quitar</button>
+                          )}
+                          <button onClick={() => deleteBrandItem(b.id)} className="bg-red-100 dark:bg-red-950 hover:bg-red-200 dark:hover:bg-red-900 text-red-700 dark:text-red-400 text-xs font-bold px-3 py-1.5 rounded-lg transition-all">
+                            Eliminar
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
                 </>
               ) : (
                 <>
-                  <div className="flex gap-2 mb-5">
-                    <input
-                      type="text"
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
-                      placeholder="Nueva categoría (ej. Eléctricas)"
-                      className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                    />
-                    <button
-                      onClick={addCategory}
-                      disabled={catalogBusy}
-                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black px-4 rounded-xl text-sm transition-all"
-                    >
-                      Agregar
-                    </button>
+                  {/* Alta de categoría con imagen opcional */}
+                  <div className="border border-gray-200 dark:border-neutral-800 rounded-xl p-3 mb-5">
+                    <div className="flex gap-3">
+                      <label className={`shrink-0 w-16 h-16 rounded-lg border border-dashed flex items-center justify-center overflow-hidden cursor-pointer text-center text-[10px] font-bold transition-all ${
+                        catalogUploading === 'new-cat' ? 'border-orange-500 text-orange-500' : 'border-gray-300 dark:border-neutral-600 text-gray-400 hover:border-orange-500 hover:text-orange-500'
+                      } bg-gray-50 dark:bg-neutral-800`}>
+                        {newCatImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={newCatImage} alt="" className="w-full h-full object-cover" />
+                        ) : catalogUploading === 'new-cat' ? '⏳' : '📁 Foto'}
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleCatalogImageUpload(e, 'new-cat')} />
+                      </label>
+                      <div className="flex-1 flex flex-col gap-2">
+                        <input
+                          type="text"
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
+                          placeholder="Nueva categoría (ej. Eléctricas)"
+                          className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newCatImage}
+                            onChange={e => setNewCatImage(e.target.value)}
+                            placeholder="…o pega la URL de la imagen"
+                            className="flex-1 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-3 py-1.5 text-gray-900 dark:text-white text-xs focus:outline-none focus:border-orange-500 transition-all"
+                          />
+                          <button
+                            onClick={addCategory}
+                            disabled={catalogBusy}
+                            className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-black font-black px-4 rounded-xl text-sm transition-all"
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {categories.length === 0 ? (
@@ -774,8 +1221,25 @@ export default function AdminPage() {
                     <div className="space-y-4">
                       {categories.map(cat => (
                         <div key={cat.id} className="border border-gray-200 dark:border-neutral-800 rounded-xl p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-bold text-gray-900 dark:text-white">{cat.name}</span>
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="shrink-0 w-12 h-12 rounded-lg bg-gray-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
+                              {cat.image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-lg">📦</span>
+                              )}
+                            </div>
+                            <span className="flex-1 min-w-0 truncate font-bold text-gray-900 dark:text-white">{cat.name}</span>
+                            <label className={`cursor-pointer text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
+                              catalogUploading === `cat-${cat.id}` ? 'text-orange-500' : 'bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white'
+                            }`}>
+                              {catalogUploading === `cat-${cat.id}` ? '⏳' : (cat.image ? 'Cambiar' : 'Imagen')}
+                              <input type="file" accept="image/*" className="hidden" onChange={e => handleCatalogImageUpload(e, { type: 'cat', id: cat.id })} />
+                            </label>
+                            {cat.image && (
+                              <button onClick={() => setCategoryImage(cat.id, null)} className="text-gray-400 hover:text-red-500 text-xs font-bold" title="Quitar imagen">Quitar</button>
+                            )}
                             <button
                               onClick={() => deleteCategoryItem(cat.id)}
                               className="text-red-500 hover:text-red-400 text-xs font-bold"
@@ -942,6 +1406,21 @@ export default function AdminPage() {
                     placeholder="Ej. ABC-123"
                     className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
                   />
+                </div>
+
+                {/* Cantidad disponible */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-1.5">Cantidad</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    value={form.quantity}
+                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                    placeholder="0"
+                    className="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                  />
+                  <p className="text-[10px] text-gray-400 dark:text-neutral-500 mt-1">Unidades disponibles en inventario</p>
                 </div>
 
                 <div className="col-span-2">

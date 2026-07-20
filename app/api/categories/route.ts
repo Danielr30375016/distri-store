@@ -16,11 +16,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { name } = await request.json()
+    const { name, image } = await request.json()
     if (!name || !String(name).trim()) {
       return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
     }
-    const category = await createCategory(String(name).trim())
+    const category = await createCategory(String(name).trim(), image ? String(image).trim() : null)
     return NextResponse.json(category, { status: 201 })
   } catch (err: unknown) {
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
