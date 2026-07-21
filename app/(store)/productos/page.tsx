@@ -1,6 +1,9 @@
 import CatalogClient from '@/components/CatalogClient'
 import { getProducts, getActiveBanners } from '@/lib/data'
 
+// Datos siempre frescos para reflejar cambios del admin sin rebuild.
+export const dynamic = 'force-dynamic'
+
 export default async function CatalogPage({
   searchParams,
 }: {

@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { getBrands, getProducts } from '@/lib/data'
 
+// Datos siempre frescos para reflejar cambios del admin sin rebuild.
+export const dynamic = 'force-dynamic'
+
 export default async function MarcasPage() {
   const [brands, products] = await Promise.all([getBrands(), getProducts()])
 

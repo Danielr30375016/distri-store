@@ -3,6 +3,10 @@ import ProductCard from '@/components/ProductCard'
 import HeroCarousel from '@/components/HeroCarousel'
 import Link from 'next/link'
 
+// Lee siempre datos frescos de la BD (categorías, banners, productos)
+// para reflejar los cambios hechos desde el admin sin necesidad de rebuild.
+export const dynamic = 'force-dynamic'
+
 export default async function Home() {
   const [products, banners, categories] = await Promise.all([
     getProducts(),
