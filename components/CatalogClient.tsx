@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import ProductCard from './ProductCard'
-import { Product } from '../lib/data'
+import HeroCarousel from './HeroCarousel'
+import { Product, Banner } from '../lib/data'
 
 interface CatalogClientProps {
   products: Product[]
+  banners?: Banner[]
   initialCategory?: string
   initialSubcategory?: string
   initialBrand?: string
@@ -15,6 +17,7 @@ interface CatalogClientProps {
 
 export default function CatalogClient({
   products,
+  banners = [],
   initialCategory = '',
   initialSubcategory = '',
   initialBrand = '',
@@ -195,6 +198,13 @@ export default function CatalogClient({
               {cat}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* BANNER / CARRUSEL (administrable desde el admin) */}
+      {banners.length > 0 && (
+        <div className="mb-8">
+          <HeroCarousel banners={banners} />
         </div>
       )}
 
