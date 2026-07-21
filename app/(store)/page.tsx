@@ -18,7 +18,7 @@ export default async function Home() {
 
       {/* 2. BOTONES DE ACCESO RÁPIDO (Personalidad DistriStore) */}
       <div className="flex flex-wrap gap-4 justify-center">
-        {['🔥 Lo más vendido', '🏷️ Ofertas del mes', '🆕 Recién llegados', '💎 Premium'].map((label) => (
+        {['🔥 Lo más vendido', '🏷️ Ofertas del mes', '🆕 Recién llegados', ].map((label) => (
           <button key={label} className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 hover:border-orange-500 text-gray-700 dark:text-white px-6 py-2 rounded-full text-sm font-bold transition-all hover:bg-orange-50 dark:hover:bg-neutral-800 shadow-sm dark:shadow-none">
             {label}
           </button>
