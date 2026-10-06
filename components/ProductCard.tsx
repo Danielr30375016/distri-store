@@ -10,9 +10,13 @@ interface ProductProps {
   images?: string[]
   discount?: number
   stock?: boolean
+  quantity?: number
 }
 
-export default function ProductCard({ id, name, price, images = [], discount = 0, stock = true }: ProductProps) {
+export default function ProductCard({ id, name, price, images = [], discount = 0, stock: stockFlag = true, quantity }: ProductProps) {
+  // El checkout valida la cantidad disponible: un producto con stock=true pero cantidad 0
+  // no se puede comprar, así que se muestra como agotado.
+  const stock = stockFlag && (quantity === undefined || quantity > 0)
   const { addToCart } = useCart()
   const hasDiscount = discount > 0
   const finalPrice = hasDiscount ? Math.round(price * (1 - discount / 100)) : price

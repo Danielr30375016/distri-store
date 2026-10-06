@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProducts, createProduct } from '../../../lib/data'
 import { requireAdmin } from '../../../lib/auth'
+import { firstZodError, productCreateSchema } from '../../../lib/validation'
 
 export async function GET() {
   const products = await getProducts()
@@ -8,32 +9,17 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!await requireAdmin(request)) {
+  if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  const parsed = productCreateSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: firstZodError(parsed.error) }, { status: 400 })
+  }
+
   try {
-    const body = await request.json()
-    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock, quantity } = body
-    if (!name || price == null || !desc || !category) {
-      return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
-    }
-    const cleanImages = Array.isArray(images)
-      ? images.filter((i: unknown): i is string => typeof i === 'string' && i.trim() !== '').slice(0, 6)
-      : []
-    const product = await createProduct({
-      name,
-      price: Number(price),
-      images: cleanImages,
-      desc,
-      category,
-      subcategory: subcategory?.trim() || null,
-      reference: reference?.trim() || null,
-      brand: brand?.trim() || null,
-      discount: Number(discount ?? 0),
-      stock: stock !== false,
-      quantity: Math.max(0, Number(quantity ?? 0) || 0),
-    })
+    const product = await createProduct(parsed.data)
     return NextResponse.json(product, { status: 201 })
   } catch (err) {
     console.error('Error al crear producto:', err)

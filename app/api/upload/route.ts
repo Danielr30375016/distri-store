@@ -3,7 +3,14 @@ import { put } from '@vercel/blob'
 import { requireAdmin } from '../../../lib/auth'
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/avif']
+// SVG eliminado: un SVG puede contener <script> y ejecutar JavaScript (XSS almacenado).
+const ALLOWED: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/avif': 'avif',
+}
 
 export async function POST(request: Request) {
   if (!await requireAdmin(request)) {
@@ -24,14 +31,17 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 })
     }
-    if (!ALLOWED.includes(file.type)) {
+    if (!(file.type in ALLOWED)) {
       return NextResponse.json({ error: 'Formato de imagen no permitido' }, { status: 400 })
     }
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'La imagen supera los 5 MB' }, { status: 400 })
     }
 
-    const blob = await put(`products/${file.name}`, file, {
+    // No usar el nombre original tal cual (puede traer ../, espacios o caracteres raros)
+    const base = file.name.replace(/\.[^.]*$/, '').normalize('NFKD').replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 60) || 'imagen'
+    const blob = await put(`products/${base}.${ALLOWED[file.type]}`, file, {
+      contentType: file.type,
       access: 'public',
       addRandomSuffix: true,
     })

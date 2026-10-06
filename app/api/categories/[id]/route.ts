@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { deleteCategory, updateCategory } from '../../../../lib/data'
 import { requireAdmin } from '../../../../lib/auth'
+import { isSafeImageUrl, parseId } from '../../../../lib/validation'
 
 export async function PUT(
   request: Request,
@@ -10,11 +11,12 @@ export async function PUT(
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   try {
-    const { id } = await params
+    const id = parseId((await params).id)
+    if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     const { name, image } = await request.json()
-    const category = await updateCategory(Number(id), {
-      ...(name != null && String(name).trim() ? { name: String(name).trim() } : {}),
-      ...(image !== undefined ? { image: image ? String(image).trim() : null } : {}),
+    const category = await updateCategory(id, {
+      ...(name != null && String(name).trim().slice(0, 120) ? { name: String(name).trim().slice(0, 120) } : {}),
+      ...(image !== undefined ? { image: typeof image === 'string' && isSafeImageUrl(image) ? image.trim() : null } : {}),
     })
     return NextResponse.json(category)
   } catch (err: unknown) {
@@ -34,8 +36,9 @@ export async function DELETE(
   }
 
   try {
-    const { id } = await params
-    await deleteCategory(Number(id))
+    const id = parseId((await params).id)
+    if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    await deleteCategory(id)
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Error al eliminar la categoría' }, { status: 500 })

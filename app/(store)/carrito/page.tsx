@@ -4,11 +4,9 @@ import { site } from '@/lib/site'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 export default function CartPage() {
-  const { items, removeFromCart, clearCart } = useCart()
-  const router = useRouter()
+  const { items, removeFromCart, clearCart, updateQuantity, hydrated } = useCart()
 
   const [customer, setCustomer] = useState({ customerName: '', phone: '', email: '', address: '' })
   const [submitting, setSubmitting] = useState(false)
@@ -22,11 +20,12 @@ export default function CartPage() {
 
     const listaProductos = items.map(item =>
       `- ${item.name} (x${item.quantity}): $${(item.price * item.quantity).toLocaleString('es-CO')}`
-    ).join('%0A') // %0A es un salto de línea en URL
+    ).join('\n')
 
-    const mensaje = `¡Hola! Quisiera realizar el siguiente pedido en DistriStore:%0A%0A${listaProductos}%0A%0A*TOTAL A PAGAR: $${total.toLocaleString('es-CO')}*`
+    const mensaje = `¡Hola! Quisiera realizar el siguiente pedido en ${site.name}:\n\n${listaProductos}\n\n*TOTAL A PAGAR: $${total.toLocaleString('es-CO')}*`
 
-    window.open(`https://wa.me/${telefono}?text=${mensaje}`, '_blank')
+    // BUG corregido: antes el texto no se codificaba; un nombre con "&" o "#" cortaba el mensaje.
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener,noreferrer')
   }
 
   const handlePayCheckout = async () => {
@@ -48,20 +47,20 @@ export default function CartPage() {
       const data = await res.json()
       if (!res.ok) {
         setCheckoutError(data.error ?? 'No se pudo procesar el pedido')
+        setSubmitting(false)
         return
       }
-      clearCart()
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl
-      } else {
-        router.push(`/pedido/${data.orderId}`)
-      }
+      // El carrito NO se vacía aquí: si el pago falla, el cliente conserva sus productos.
+      // Se vacía en /pedido/<referencia> cuando Wompi confirma el pago.
+      window.location.href = data.paymentUrl
     } catch {
       setCheckoutError('Error de conexión. Intenta de nuevo.')
-    } finally {
       setSubmitting(false)
     }
+    // Si todo salió bien se mantiene "Procesando..." mientras redirige a Wompi (evita doble clic)
   }
+
+  if (!hydrated) return <div className="text-center py-20 uppercase font-black">Cargando...</div>
 
   if (items.length === 0) {
     return (
@@ -97,8 +96,21 @@ export default function CartPage() {
               <div className="flex-grow min-w-0">
                 <h3 className="font-bold uppercase text-sm md:text-base leading-tight text-gray-900 dark:text-neutral-100 truncate">{item.name}</h3>
                 <p className="text-orange-500 font-black text-base md:text-lg mt-1">
-                  ${item.price.toLocaleString('es-CO')} <span className="text-gray-400 dark:text-neutral-500 text-sm font-normal">x {item.quantity}</span>
+                  ${item.price.toLocaleString('es-CO')}
                 </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                    className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-neutral-800 font-black hover:bg-gray-200 dark:hover:bg-neutral-700"
+                    aria-label="Quitar una unidad"
+                  >−</button>
+                  <span className="w-8 text-center font-bold text-gray-900 dark:text-white">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                    className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-neutral-800 font-black hover:bg-gray-200 dark:hover:bg-neutral-700"
+                    aria-label="Agregar una unidad"
+                  >+</button>
+                </div>
               </div>
               <button 
                 onClick={() => removeFromCart(item.id)} 
@@ -123,7 +135,7 @@ export default function CartPage() {
           
           <div className="space-y-4 mb-8">
             <div className="flex justify-between text-gray-500 dark:text-neutral-400">
-              <span>Productos ({items.length})</span>
+              <span>Productos ({items.reduce((a, i) => a + i.quantity, 0)})</span>
               <span>${total.toLocaleString('es-CO')}</span>
             </div>
             <div className="flex justify-between text-gray-500 dark:text-neutral-400">
@@ -160,7 +172,7 @@ export default function CartPage() {
               className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white"
             />
             <textarea
-              placeholder="Dirección de entrega"
+              placeholder="Dirección de entrega (incluye barrio y ciudad)"
               value={customer.address}
               onChange={e => setCustomer({ ...customer, address: e.target.value })}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white resize-none"
@@ -188,7 +200,7 @@ export default function CartPage() {
           </button>
 
           <p className="text-[10px] text-gray-400 dark:text-neutral-500 mt-6 text-center uppercase tracking-widest">
-            No es necesario crear una cuenta para comprar.
+            Pago seguro con Wompi (PSE, Nequi, tarjetas). El total final se confirma en el servidor.
           </p>
         </div>
       </div>

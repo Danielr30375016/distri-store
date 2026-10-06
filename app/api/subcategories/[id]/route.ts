@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { deleteSubcategory } from '../../../../lib/data'
 import { requireAdmin } from '../../../../lib/auth'
+import { parseId } from '../../../../lib/validation'
 
 export async function DELETE(
   request: Request,
@@ -11,8 +12,9 @@ export async function DELETE(
   }
 
   try {
-    const { id } = await params
-    await deleteSubcategory(Number(id))
+    const id = parseId((await params).id)
+    if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    await deleteSubcategory(id)
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Error al eliminar la subcategoría' }, { status: 500 })

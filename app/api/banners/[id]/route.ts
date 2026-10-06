@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { updateBanner, deleteBanner } from '../../../../lib/data'
 import { requireAdmin } from '../../../../lib/auth'
+import { bannerUpdateSchema, firstZodError, parseId } from '../../../../lib/validation'
 
 export async function PUT(
   request: Request,
@@ -9,18 +10,17 @@ export async function PUT(
   if (!await requireAdmin(request)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  const id = parseId((await params).id)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+  const parsed = bannerUpdateSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: firstZodError(parsed.error) }, { status: 400 })
+  }
   try {
-    const { id } = await params
-    const body = await request.json()
-    const { image, title, isPromo, price, order, active } = body
-    const banner = await updateBanner(Number(id), {
-      ...(image != null ? { image: String(image).trim() } : {}),
-      ...(title != null ? { title: String(title).slice(0, 120) } : {}),
-      ...(isPromo != null ? { isPromo: isPromo === true } : {}),
-      price: isPromo && price != null && price !== '' ? Number(price) : null,
-      ...(order != null ? { order: Number(order) } : {}),
-      ...(active != null ? { active: active !== false } : {}),
-    })
+    // BUG corregido: antes cualquier edición sin isPromo borraba el precio (price: null).
+    const data = { ...parsed.data }
+    if (data.isPromo === false) data.price = null
+    const banner = await updateBanner(id, data)
     return NextResponse.json(banner)
   } catch (err) {
     console.error('Error al actualizar banner:', err)
@@ -35,9 +35,10 @@ export async function DELETE(
   if (!await requireAdmin(request)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  const id = parseId((await params).id)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
   try {
-    const { id } = await params
-    await deleteBanner(Number(id))
+    await deleteBanner(id)
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Error al eliminar el banner' }, { status: 500 })

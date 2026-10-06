@@ -98,6 +98,7 @@ export default async function Home() {
               images={p.images}
               discount={p.discount}
               stock={p.stock}
+              quantity={p.quantity}
             />
           ))}
         </div>

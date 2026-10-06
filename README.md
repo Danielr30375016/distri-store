@@ -63,13 +63,14 @@ Ver `.env.example` para la lista completa. Resumen:
 
 ```
 app/
-  (admin)/            Panel de administración (protegido por proxy.ts)
+  (admin)/            Panel de administración (protegido por proxy.ts) — incluye /admin/pedidos
   (store)/             Tienda pública: catálogo, carrito, checkout, estado de pedido
   api/
     admin/             Login/logout de admin
     products, banners, brands, categories, subcategories, upload   -> CRUD del catálogo (mutaciones protegidas)
     checkout/          Crea el pedido, recalcula precios/stock en servidor, arma la URL de pago Wompi
-    orders/[id]/       Consulta de estado de un pedido
+    orders/[reference]/ Estado público de un pedido (por referencia aleatoria, no por id) + sincronización con Wompi
+    admin/orders/      Listado y cancelación de pedidos (admin)
     webhooks/wompi/    Recibe la confirmación de pago de Wompi y actualiza el pedido
 lib/
   auth.ts              Sesiones de admin (bcrypt + jose) y rate limiting de login
@@ -87,10 +88,19 @@ prisma/
 El checkout es **de invitado**: el cliente no necesita crear una cuenta. Completa nombre, teléfono, correo y dirección; el servidor:
 
 1. Recalcula el total y valida el stock **contra la base de datos** (nunca confía en el precio que envía el navegador).
-2. Crea un `Order` con estado `PENDING` y descuenta el stock.
+2. Crea un `Order` `PENDING` con una **referencia aleatoria** (`DS-XXXXXXXX…`) y **reserva** el stock con un descuento atómico (sin sobreventa).
 3. Envía un correo de confirmación al cliente (si `RESEND_API_KEY` está configurada).
-4. Si Wompi está configurado, redirige al cliente al Web Checkout hospedado de Wompi.
-5. Wompi notifica el resultado del pago a `/api/webhooks/wompi` (firma verificada); el pedido pasa a `PAID` o `FAILED` y se envían las notificaciones correspondientes al cliente y al admin.
+4. Redirige al Web Checkout de Wompi con firma de integridad y **expiración de 60 minutos**.
+5. Wompi notifica el resultado a `/api/webhooks/wompi` (checksum verificado, monto verificado, procesamiento idempotente):
+   - `APPROVED` → `PAID` (emails al cliente y al admin, una sola vez).
+   - `DECLINED` / `ERROR` → `FAILED` y se **devuelve el stock**.
+   - `VOIDED` → `CANCELLED` y se devuelve el stock.
+6. Al volver de Wompi, `/pedido/<referencia>?id=<transacción>` consulta la transacción a la API de Wompi, así el estado se ve aunque el webhook tarde.
+7. Los pedidos `PENDING` con más de 70 min se cancelan solos y liberan el stock (se ejecuta en cada checkout y al abrir /admin/pedidos).
+
+El carrito solo se vacía cuando el pago queda confirmado.
+
+> **Inventario:** el checkout exige `quantity` ≥ unidades pedidas. Un producto con `stock = true` pero `quantity = 0` se muestra como agotado. Asegúrate de cargar las cantidades en el admin.
 
 El botón "Finalizar por WhatsApp" se mantiene como canal manual alternativo.
 
@@ -110,7 +120,9 @@ El botón "Finalizar por WhatsApp" se mantiene como canal manual alternativo.
 ## Seguridad aplicada
 
 - Autenticación de admin con hash bcrypt (no SHA-256), sesión firmada con expiración (JWT vía `jose`), y bloqueo tras 5 intentos fallidos de login (15 min).
-- Validación de esquemas (`zod`) en todas las rutas API que reciben datos.
+- Validación de esquemas (`zod`) en productos, banners y checkout; ids numéricos y URLs de imagen (solo `https://` o rutas locales) validados en el resto.
+- Pedidos públicos accesibles solo por referencia aleatoria (no enumerables), rate limit en checkout, HTML escapado en los correos.
+- Subida de imágenes sin SVG (evita XSS almacenado) y con nombre de archivo saneado.
 - Cabeceras de seguridad (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) configuradas en `next.config.ts`.
 - Conexión a PostgreSQL con verificación de certificado TLS activa (`sslmode=require`/`verify-full`, sin `rejectUnauthorized: false`).
 - El total de una compra siempre se calcula en el servidor a partir del precio real en base de datos.

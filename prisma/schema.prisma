@@ -74,16 +74,23 @@ enum OrderStatus {
 
 model Order {
   id            Int         @id @default(autoincrement())
+  // Referencia aleatoria (no adivinable). Se envía a Wompi y se usa en la URL pública
+  // /pedido/<reference>, para que nadie pueda ver pedidos ajenos cambiando el número.
+  reference     String      @unique
   customerName  String
   phone         String
   email         String
   address       String
   total         Int
   status        OrderStatus @default(PENDING)
-  wompiReference String?    @unique
+  wompiReference String?    @unique // id de la transacción en Wompi
+  paymentMethod String?
+  stockReleased Boolean     @default(false) // true cuando el stock reservado ya se devolvió
   items         OrderItem[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  @@index([status, createdAt])
 }
 
 model OrderItem {

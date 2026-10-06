@@ -2,14 +2,17 @@ import 'dotenv/config'
 import { prisma } from '../lib/db'
 
 async function main() {
-  // Limpiar datos existentes
+  // Seguridad: el seed BORRA el catálogo; nunca ejecutarlo en producción.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('El seed borra todos los productos; no se ejecuta en producción.')
+  }
+  // Limpiar datos existentes (sin ids explícitos: rompían la secuencia autoincrement)
   await prisma.product.deleteMany()
 
   // Insertar productos
   await prisma.product.createMany({
     data: [
       {
-        id: 1,
         name: "Martillo Pro",
         price: 15000,
         images: ["/products/martillo-pro.svg"],
@@ -17,7 +20,6 @@ async function main() {
         category: "Manuales"
       },
       {
-        id: 2,
         name: "Taladro Inalámbrico",
         price: 120000,
         images: ["/products/taladro-inalambrico.svg"],
@@ -25,7 +27,6 @@ async function main() {
         category: "Eléctricas"
       },
       {
-        id: 3,
         name: "Caja de Herramientas",
         price: 45000,
         images: ["/products/caja-de-herramientas.svg"],

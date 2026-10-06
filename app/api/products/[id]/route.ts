@@ -1,65 +1,51 @@
 import { NextResponse } from 'next/server'
 import { getProductById, updateProduct, deleteProduct } from '../../../../lib/data'
 import { requireAdmin } from '../../../../lib/auth'
+import { firstZodError, parseId, productUpdateSchema } from '../../../../lib/validation'
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const product = await getProductById(Number(id))
+type Ctx = { params: Promise<{ id: string }> }
+
+export async function GET(_request: Request, { params }: Ctx) {
+  const id = parseId((await params).id)
+  const product = id ? await getProductById(id) : null
   if (!product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 })
   }
   return NextResponse.json(product)
 }
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!await requireAdmin(request)) {
+export async function PUT(request: Request, { params }: Ctx) {
+  if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  const id = parseId((await params).id)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+
+  // BUG corregido: antes, si el body no traía "discount" o "stock", se reseteaban a 0 / true.
+  // Ahora solo se actualizan los campos enviados.
+  const parsed = productUpdateSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: firstZodError(parsed.error) }, { status: 400 })
   }
 
   try {
-    const { id } = await params
-    const body = await request.json()
-    const { name, price, images, desc, category, subcategory, reference, brand, discount, stock, quantity } = body
-    const product = await updateProduct(Number(id), {
-      ...(name && { name }),
-      ...(price != null && { price: Number(price) }),
-      ...(desc && { desc }),
-      ...(category && { category }),
-      ...(subcategory !== undefined && { subcategory: subcategory?.trim() || null }),
-      ...(reference !== undefined && { reference: reference?.trim() || null }),
-      ...(brand !== undefined && { brand: brand?.trim() || null }),
-      ...(Array.isArray(images) && {
-        images: images
-          .filter((i: unknown): i is string => typeof i === 'string' && i.trim() !== '')
-          .slice(0, 6),
-      }),
-      discount: discount != null ? Number(discount) : 0,
-      stock: stock !== false,
-      ...(quantity != null && { quantity: Math.max(0, Number(quantity) || 0) }),
-    })
+    const product = await updateProduct(id, parsed.data)
     return NextResponse.json(product)
-  } catch {
+  } catch (err) {
+    console.error('Error al actualizar producto:', err)
     return NextResponse.json({ error: 'Error al actualizar producto' }, { status: 500 })
   }
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!await requireAdmin(request)) {
+export async function DELETE(request: Request, { params }: Ctx) {
+  if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  const id = parseId((await params).id)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
   try {
-    const { id } = await params
-    await deleteProduct(Number(id))
+    await deleteProduct(id)
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Error al eliminar producto' }, { status: 500 })

@@ -3,6 +3,7 @@ import { site } from './site'
 
 interface OrderForEmail {
   id: number
+  reference: string
   customerName: string
   email: string
   phone: string
@@ -17,6 +18,21 @@ function getResend(): Resend | null {
   return new Resend(apiKey)
 }
 
+/** Escapa HTML: el nombre/dirección los escribe el cliente y podrían traer <a>, <img>, etc. */
+function esc(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function orderUrl(reference: string): string | null {
+  const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+  return base ? `${base}/pedido/${encodeURIComponent(reference)}` : null
+}
+
 function formatCOP(value: number): string {
   return `$${value.toLocaleString('es-CO')}`
 }
@@ -25,7 +41,7 @@ function itemsHtml(items: OrderForEmail['items']): string {
   return items
     .map(
       i =>
-        `<tr><td>${i.name}</td><td>x${i.quantity}</td><td>${formatCOP(i.price * i.quantity)}</td></tr>`
+        `<tr><td>${esc(i.name)}</td><td>x${i.quantity}</td><td>${formatCOP(i.price * i.quantity)}</td></tr>`
     )
     .join('')
 }
@@ -41,13 +57,14 @@ export async function sendOrderConfirmation(order: OrderForEmail): Promise<void>
   await resend.emails.send({
     from,
     to: order.email,
-    subject: `Pedido #${order.id} recibido - ${site.name}`,
+    subject: `Pedido ${order.reference} recibido - ${site.name}`,
     html: `
-      <h2>¡Gracias por tu pedido, ${order.customerName}!</h2>
-      <p>Recibimos tu pedido #${order.id}. Te avisaremos cuando el pago sea confirmado.</p>
+      <h2>¡Gracias por tu pedido, ${esc(order.customerName)}!</h2>
+      <p>Recibimos tu pedido ${order.reference}. Te avisaremos cuando el pago sea confirmado.</p>
+      ${orderUrl(order.reference) ? `<p><a href="${orderUrl(order.reference)}">Ver estado del pedido</a></p>` : ''}
       <table>${itemsHtml(order.items)}</table>
       <p><strong>Total: ${formatCOP(order.total)}</strong></p>
-      <p>Dirección de entrega: ${order.address}</p>
+      <p>Dirección de entrega: ${esc(order.address)}</p>
     `,
   })
 }
@@ -60,10 +77,10 @@ export async function sendPaymentConfirmedEmail(order: OrderForEmail): Promise<v
   await resend.emails.send({
     from,
     to: order.email,
-    subject: `Pago confirmado - Pedido #${order.id}`,
+    subject: `Pago confirmado - Pedido ${order.reference}`,
     html: `
       <h2>¡Tu pago fue confirmado!</h2>
-      <p>El pedido #${order.id} por ${formatCOP(order.total)} ya está siendo preparado.</p>
+      <p>El pedido ${order.reference} por ${formatCOP(order.total)} ya está siendo preparado.</p>
     `,
   })
 }
@@ -76,13 +93,13 @@ export async function sendAdminOrderAlert(order: OrderForEmail): Promise<void> {
   await resend.emails.send({
     from,
     to: site.email,
-    subject: `Pago confirmado - Pedido #${order.id}`,
+    subject: `Nuevo pago confirmado - Pedido ${order.reference}`,
     html: `
       <h2>Nuevo pago confirmado</h2>
-      <p>Cliente: ${order.customerName} (${order.phone}, ${order.email})</p>
+      <p>Cliente: ${esc(order.customerName)} (${esc(order.phone)}, ${esc(order.email)})</p>
       <table>${itemsHtml(order.items)}</table>
       <p><strong>Total: ${formatCOP(order.total)}</strong></p>
-      <p>Dirección: ${order.address}</p>
+      <p>Dirección: ${esc(order.address)}</p>
     `,
   })
 }

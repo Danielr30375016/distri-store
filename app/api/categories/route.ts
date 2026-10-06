@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCategories, createCategory } from '../../../lib/data'
 import { requireAdmin } from '../../../lib/auth'
+import { isSafeImageUrl } from '../../../lib/validation'
 
 export async function GET() {
   const categories = await getCategories()
@@ -14,10 +15,10 @@ export async function POST(request: Request) {
 
   try {
     const { name, image } = await request.json()
-    if (!name || !String(name).trim()) {
+    if (!name || !String(name).trim().slice(0, 120)) {
       return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
     }
-    const category = await createCategory(String(name).trim(), image ? String(image).trim() : null)
+    const category = await createCategory(String(name).trim().slice(0, 120), typeof image === 'string' && isSafeImageUrl(image) ? image.trim() : null)
     return NextResponse.json(category, { status: 201 })
   } catch (err: unknown) {
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {

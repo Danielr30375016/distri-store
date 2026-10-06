@@ -13,21 +13,51 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [relacionados, setRelacionados] = useState<Product[]>([])
   const [activeImg, setActiveImg] = useState(0)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     async function fetchData() {
-      const prodRes = await fetch(`/api/products/${id}`)
-      const prod: Product = await prodRes.json()
-      setProduct(prod)
-      setActiveImg(0)
-      const productsRes = await fetch('/api/products')
-      const products: Product[] = await productsRes.json()
-      setRelacionados(products.filter((p: Product) => p.id !== Number(id)).sort(() => 0.5 - Math.random()).slice(0, 3))
+      // BUG corregido: si el producto no existía se guardaba {error: ...} como producto
+      // y la página se rompía al leer product.images / product.price.
+      try {
+        setNotFound(false)
+        const prodRes = await fetch(`/api/products/${id}`)
+        if (!prodRes.ok) {
+          if (!cancelled) setNotFound(true)
+          return
+        }
+        const prod: Product = await prodRes.json()
+        if (cancelled) return
+        setProduct(prod)
+        setActiveImg(0)
+        const productsRes = await fetch('/api/products')
+        const products: Product[] = productsRes.ok ? await productsRes.json() : []
+        if (cancelled) return
+        // Relacionados: priorizar la misma categoría
+        const others = products.filter(p => p.id !== prod.id)
+        const sameCat = others.filter(p => p.category === prod.category)
+        const pool = sameCat.length >= 3 ? sameCat : others
+        setRelacionados([...pool].sort(() => 0.5 - Math.random()).slice(0, 3))
+      } catch {
+        if (!cancelled) setNotFound(true)
+      }
     }
     fetchData()
+    return () => { cancelled = true }
   }, [id])
 
+  if (notFound) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-3xl font-black uppercase mb-4">Producto no encontrado</h1>
+        <Link href="/productos" className="text-orange-500 font-bold hover:underline">← Volver al catálogo</Link>
+      </div>
+    )
+  }
   if (!product) return <div className="text-center py-20 uppercase font-black">Cargando...</div>
+
+  const available = product.stock && product.quantity > 0
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
@@ -39,7 +69,7 @@ export default function ProductDetailPage() {
         {/* Lado Izquierdo: Carrusel de imágenes */}
         <div className="flex flex-col gap-3">
           <div className="relative h-[280px] md:h-[400px] bg-gray-100 dark:bg-neutral-800 rounded-2xl overflow-hidden group">
-            {!product.stock && (
+            {!available && (
               <div className="absolute inset-0 bg-black/40 dark:bg-black/60 z-10 flex items-center justify-center">
                 <span className="bg-red-600 text-white text-sm font-black px-4 py-2 rounded-xl uppercase tracking-wider shadow-lg">Agotado</span>
               </div>
@@ -114,7 +144,7 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {product.discount > 0 && product.stock ? (
+          {product.discount > 0 && available ? (
             <div className="mb-8">
               <div className="flex items-center gap-3 mb-1">
                 <span className="bg-green-500 text-black text-sm font-black px-3 py-1 rounded-lg">
@@ -142,7 +172,7 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="mb-4">
-            {product.stock ? (
+            {available ? (
               <span className="inline-flex items-center gap-1.5 text-green-600 dark:text-green-400 text-xs font-black uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> En stock
               </span>
@@ -154,15 +184,15 @@ export default function ProductDetailPage() {
           </div>
 
           <button 
-            onClick={() => product.stock && addToCart({ id: product.id, name: product.name, image: product.images?.[0], price: product.discount > 0 ? Math.round(product.price * (1 - product.discount / 100)) : product.price })}
-            disabled={!product.stock}
+            onClick={() => available && addToCart({ id: product.id, name: product.name, image: product.images?.[0], price: product.discount > 0 ? Math.round(product.price * (1 - product.discount / 100)) : product.price })}
+            disabled={!available}
             className={`py-4 md:py-5 px-8 rounded-2xl transition-all font-black uppercase tracking-tighter ${
-              product.stock
+              available
                 ? 'bg-orange-600 hover:bg-orange-500 text-black transform active:scale-95 shadow-lg shadow-orange-900/40'
                 : 'bg-gray-200 dark:bg-neutral-700 text-gray-400 dark:text-neutral-500 cursor-not-allowed'
             }`}
           >
-            {product.stock ? 'AÑADIR AL CARRITO 🛒' : 'SIN STOCK'}
+            {available ? 'AÑADIR AL CARRITO 🛒' : 'SIN STOCK'}
           </button>
         </div>
       </div>

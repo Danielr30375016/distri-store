@@ -1,32 +1,14 @@
 import { NextResponse } from 'next/server'
-import { verifyWompiEventSignature } from '../../../../lib/wompi'
-import { markOrderPaid, markOrderFailed, getOrderById } from '../../../../lib/orders'
+import { verifyWompiEvent, type WompiTransaction } from '../../../../lib/wompi'
+import { applyWompiTransaction, getOrderById } from '../../../../lib/orders'
 import { sendPaymentConfirmedEmail, sendAdminOrderAlert } from '../../../../lib/email'
 
 interface WompiEvent {
-  event: string
-  data: {
-    transaction: {
-      id: string
-      status: 'APPROVED' | 'DECLINED' | 'VOIDED' | 'ERROR'
-      reference: string
-      amount_in_cents: number
-    }
-  }
-  signature: {
-    properties: string[]
-    checksum: string
-  }
-  timestamp: number
-}
-
-function getProp(obj: unknown, path: string): unknown {
-  return path.split('.').reduce<unknown>((acc, key) => {
-    if (acc && typeof acc === 'object' && key in acc) {
-      return (acc as Record<string, unknown>)[key]
-    }
-    return undefined
-  }, obj)
+  event?: string
+  data?: { transaction?: WompiTransaction }
+  signature?: { properties?: string[]; checksum?: string }
+  timestamp?: number
+  environment?: string
 }
 
 export async function POST(request: Request) {
@@ -35,28 +17,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Payload inválido' }, { status: 400 })
   }
 
-  const values = body.signature.properties.map(prop => String(getProp(body, prop) ?? ''))
-  const isValid = await verifyWompiEventSignature(values, body.timestamp, body.signature.checksum)
+  let isValid = false
+  try {
+    isValid = await verifyWompiEvent(body, request.headers.get('x-event-checksum'))
+  } catch (err) {
+    console.error('[webhook] Configuración incompleta:', err)
+    return NextResponse.json({ error: 'No configurado' }, { status: 500 })
+  }
   if (!isValid) {
     return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
   }
 
-  const { transaction } = body.data
-  const orderId = Number(transaction.reference)
-  if (!Number.isFinite(orderId)) {
-    return NextResponse.json({ error: 'Referencia inválida' }, { status: 400 })
+  if (body.event !== 'transaction.updated') {
+    return NextResponse.json({ received: true, ignored: body.event })
   }
 
-  if (transaction.status === 'APPROVED') {
-    await markOrderPaid(orderId, transaction.id)
-    const order = await getOrderById(orderId)
-    if (order) {
-      sendPaymentConfirmedEmail(order).catch(err => console.error('[webhook] email cliente:', err))
-      sendAdminOrderAlert(order).catch(err => console.error('[webhook] email admin:', err))
+  try {
+    const { order, becamePaid } = await applyWompiTransaction(body.data.transaction)
+
+    // Emails solo la PRIMERA vez que el pedido pasa a pagado (Wompi reintenta webhooks)
+    if (order && becamePaid) {
+      const full = await getOrderById(order.id)
+      if (full) {
+        sendPaymentConfirmedEmail(full).catch(err => console.error('[webhook] email cliente:', err))
+        sendAdminOrderAlert(full).catch(err => console.error('[webhook] email admin:', err))
+      }
     }
-  } else if (transaction.status === 'DECLINED' || transaction.status === 'ERROR' || transaction.status === 'VOIDED') {
-    await markOrderFailed(orderId, transaction.id)
+  } catch (err) {
+    console.error('[webhook] Error procesando evento:', err)
+    // 500 => Wompi reintentará más tarde
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 
+  // Siempre 200 si la firma es válida (aunque el pedido no exista), para que Wompi no reintente sin fin
   return NextResponse.json({ received: true })
 }

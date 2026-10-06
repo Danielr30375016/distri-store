@@ -83,7 +83,7 @@ type SortDir = 'asc' | 'desc'
 function formatPrice(raw: string): string {
   const digits = raw.replace(/\D/g, '')
   if (!digits) return ''
-  return Number(digits).toLocaleString('es-AR')
+  return Number(digits).toLocaleString('es-CO')
 }
 
 function parsePrice(formatted: string): number {
@@ -633,6 +633,12 @@ export default function AdminPage() {
           <span className="text-gray-400 dark:text-neutral-500 font-medium text-sm ml-2">/ Admin</span>
         </h1>
         <div className="flex items-center gap-3">
+          <a
+            href="/admin/pedidos"
+            className="bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-xl text-sm uppercase tracking-tighter transition-all"
+          >
+            📦 Pedidos
+          </a>
           <button
             onClick={() => { setShowBanners(true); resetBannerForm() }}
             className="bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-xl text-sm uppercase tracking-tighter transition-all"
@@ -758,7 +764,7 @@ export default function AdminPage() {
                         {p.subcategory && <span className="block text-[10px] text-gray-400 dark:text-neutral-500 mt-1">{p.subcategory}</span>}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-orange-400">
-                        ${p.price.toLocaleString('es-AR')}
+                        ${p.price.toLocaleString('es-CO')}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {p.discount > 0 ? (
@@ -1344,7 +1350,7 @@ export default function AdminPage() {
                   </div>
                   {Number(form.discount) > 0 && (
                     <p className="text-green-400 text-xs mt-1 font-bold">
-                      Precio final: ${Math.round(parsePrice(form.price) * (1 - Number(form.discount) / 100)).toLocaleString('es-AR')}
+                      Precio final: ${Math.round(parsePrice(form.price) * (1 - Number(form.discount) / 100)).toLocaleString('es-CO')}
                     </p>
                   )}
                 </div>
