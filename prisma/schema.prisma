@@ -56,3 +56,42 @@ model Subcategory {
 
   @@unique([categoryId, name])
 }
+
+model LoginAttempt {
+  id          Int      @id @default(autoincrement())
+  ip          String   @unique
+  attempts    Int      @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+model Order {
+  id            Int         @id @default(autoincrement())
+  customerName  String
+  phone         String
+  email         String
+  address       String
+  total         Int
+  status        OrderStatus @default(PENDING)
+  wompiReference String?    @unique
+  items         OrderItem[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int
+  name      String
+  price     Int
+  quantity  Int
+}

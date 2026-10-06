@@ -1,19 +1,12 @@
 import { NextResponse } from 'next/server'
 import { deleteCategory, updateCategory } from '../../../../lib/data'
-import { cookies } from 'next/headers'
-import { verifyAdminToken } from '../../../../lib/auth'
-
-async function isAuthed() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('admin_token')?.value
-  return verifyAdminToken(token ?? '')
-}
+import { requireAdmin } from '../../../../lib/auth'
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await isAuthed()) {
+  if (!await requireAdmin(request)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   try {
@@ -36,7 +29,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!await isAuthed()) {
+  if (!await requireAdmin(request)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 

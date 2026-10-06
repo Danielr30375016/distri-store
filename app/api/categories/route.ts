@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCategories, createCategory } from '../../../lib/data'
-import { cookies } from 'next/headers'
-import { verifyAdminToken } from '../../../lib/auth'
+import { requireAdmin } from '../../../lib/auth'
 
 export async function GET() {
   const categories = await getCategories()
@@ -9,9 +8,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('admin_token')?.value
-  if (!await verifyAdminToken(token ?? '')) {
+  if (!await requireAdmin(request)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 

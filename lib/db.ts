@@ -13,10 +13,7 @@ function createPrismaClient() {
     throw new Error('DATABASE_URL no esta definida')
   }
 
-  const pool = new Pool({
-    connectionString,
-    ssl: { rejectUnauthorized: false },
-  })
+  const pool = new Pool({ connectionString })
   const adapter = new PrismaPg(pool)
 
   return new PrismaClient({ adapter })

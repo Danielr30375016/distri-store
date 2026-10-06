@@ -3,25 +3,64 @@ import { useCart } from '@/src/context/CartContext'
 import { site } from '@/lib/site'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function CartPage() {
   const { items, removeFromCart, clearCart } = useCart()
+  const router = useRouter()
+
+  const [customer, setCustomer] = useState({ customerName: '', phone: '', email: '', address: '' })
+  const [submitting, setSubmitting] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
 
-  // FUNCIÓN PARA ENVIAR EL PEDIDO A WHATSAPP
-  const handleCheckout = () => {
+  // FUNCIÓN PARA ENVIAR EL PEDIDO A WHATSAPP (opción manual alternativa)
+  const handleWhatsappCheckout = () => {
     const telefono = site.phoneWhatsapp
 
-    // Formateamos la lista de productos para el mensaje
-    const listaProductos = items.map(item => 
+    const listaProductos = items.map(item =>
       `- ${item.name} (x${item.quantity}): $${(item.price * item.quantity).toLocaleString('es-CO')}`
     ).join('%0A') // %0A es un salto de línea en URL
 
     const mensaje = `¡Hola! Quisiera realizar el siguiente pedido en DistriStore:%0A%0A${listaProductos}%0A%0A*TOTAL A PAGAR: $${total.toLocaleString('es-CO')}*`
-    
-    // Abrimos el enlace de WhatsApp
+
     window.open(`https://wa.me/${telefono}?text=${mensaje}`, '_blank')
+  }
+
+  const handlePayCheckout = async () => {
+    setCheckoutError(null)
+    if (!customer.customerName.trim() || !customer.phone.trim() || !customer.email.trim() || !customer.address.trim()) {
+      setCheckoutError('Completa todos los datos de contacto y entrega.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...customer,
+          items: items.map(item => ({ productId: item.id, quantity: item.quantity })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setCheckoutError(data.error ?? 'No se pudo procesar el pedido')
+        return
+      }
+      clearCart()
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl
+      } else {
+        router.push(`/pedido/${data.orderId}`)
+      }
+    } catch {
+      setCheckoutError('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (items.length === 0) {
@@ -93,20 +132,63 @@ export default function CartPage() {
             </div>
           </div>
 
-          <div className="flex justify-between mb-8 md:mb-10 text-2xl font-black text-gray-900 dark:text-white border-t border-gray-200 dark:border-neutral-800 pt-6">
+          <div className="flex justify-between mb-6 text-2xl font-black text-gray-900 dark:text-white border-t border-gray-200 dark:border-neutral-800 pt-6">
             <span>TOTAL</span>
             <span className="text-orange-500">${total.toLocaleString('es-CO')}</span>
           </div>
 
-          <button 
-            onClick={handleCheckout}
-            className="w-full bg-orange-600 hover:bg-orange-500 text-black font-black py-4 md:py-5 rounded-2xl transition-all transform active:scale-95 shadow-lg shadow-orange-900/50 uppercase flex items-center justify-center gap-3"
+          <div className="space-y-3 mb-6">
+            <input
+              type="text"
+              placeholder="Nombre completo"
+              value={customer.customerName}
+              onChange={e => setCustomer({ ...customer, customerName: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white"
+            />
+            <input
+              type="tel"
+              placeholder="Teléfono"
+              value={customer.phone}
+              onChange={e => setCustomer({ ...customer, phone: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white"
+            />
+            <input
+              type="email"
+              placeholder="Correo electrónico"
+              value={customer.email}
+              onChange={e => setCustomer({ ...customer, email: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white"
+            />
+            <textarea
+              placeholder="Dirección de entrega"
+              value={customer.address}
+              onChange={e => setCustomer({ ...customer, address: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white resize-none"
+              rows={2}
+            />
+          </div>
+
+          {checkoutError && (
+            <p className="text-red-500 text-sm mb-4 font-bold">{checkoutError}</p>
+          )}
+
+          <button
+            onClick={handlePayCheckout}
+            disabled={submitting}
+            className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-60 text-black font-black py-4 md:py-5 rounded-2xl transition-all transform active:scale-95 shadow-lg shadow-orange-900/50 uppercase flex items-center justify-center gap-3"
           >
-            Finalizar por WhatsApp 📲
+            {submitting ? 'Procesando...' : 'Pagar pedido 💳'}
           </button>
-          
+
+          <button
+            onClick={handleWhatsappCheckout}
+            className="w-full mt-3 bg-transparent border border-gray-200 dark:border-neutral-700 hover:border-orange-500 text-gray-600 dark:text-neutral-300 font-bold py-3 rounded-2xl transition-all uppercase text-xs flex items-center justify-center gap-2"
+          >
+            O finalizar por WhatsApp 📲
+          </button>
+
           <p className="text-[10px] text-gray-400 dark:text-neutral-500 mt-6 text-center uppercase tracking-widest">
-            Al finalizar serás redirigido para concretar el pago y envío.
+            No es necesario crear una cuenta para comprar.
           </p>
         </div>
       </div>
